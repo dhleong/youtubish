@@ -1,44 +1,44 @@
-const chai = require('chai');
+import chai from "chai";
 
-const { IterableEntity } = require('../lib/iterable');
+import { IterableEntity } from "../src/iterable";
 
 // var expect = chai.expect;
 chai.should();
 
-class TestableIterable extends IterableEntity {
-    constructor() {
-        super();
-        this.nextPageResults = [];
-    }
+class TestableIterable<T> extends IterableEntity<T> {
 
-    async _fetchNextPage() {
-        return this.nextPageResults.shift();
+    public nextPageResults: Array<{ items: T[], nextPageToken?: string }> = [];
+
+    public async _fetchNextPage(token: string | undefined) {
+        const result = this.nextPageResults.shift();
+        if (!result) throw new Error("Imbalance");
+        return result;
     }
 }
 
-describe('IterableEntity', () => {
+describe("IterableEntity", () => {
 
-    let entity;
+    let entity: TestableIterable<number>;
 
-    beforeEach(function() {
+    beforeEach(() => {
         entity = new TestableIterable();
     });
 
-    describe('findIndex', function() {
-        it('Handles an empty entity', async function() {
+    describe("findIndex", () => {
+        it("Handles an empty entity", async () => {
             entity.nextPageResults.push({ items: [] });
 
             const result = await entity.findIndex(() => true);
             result.should.equal(-1);
         });
 
-        it('findIndex over single page', async function() {
+        it("findIndex over single page", async () => {
             entity.nextPageResults.push({ items: [
-                1, 2, 3, 4
+                1, 2, 3, 4,
             ] });
 
-            const saw = [];
-            const idx = await entity.findIndex((item) => {
+            const saw: number[] = [];
+            const idx = await entity.findIndex(item => {
                 saw.push(item);
                 return false;
             });
@@ -48,18 +48,18 @@ describe('IterableEntity', () => {
         });
     });
 
-    describe('async iterator', function() {
-        it('handles an empty entity', async function() {
+    describe("async iterator", () => {
+        it("handles an empty entity", async () => {
             entity.nextPageResults.push({ items: [] });
 
             for await (const item of entity) {
-                throw new Error('Should be no items');
+                throw new Error("Should be no items");
             }
         });
 
-        it('iterates over single page', async function() {
+        it("iterates over single page", async () => {
             entity.nextPageResults.push({ items: [
-                1, 2, 3, 4
+                1, 2, 3, 4,
             ] });
 
             const saw = [];
@@ -71,17 +71,17 @@ describe('IterableEntity', () => {
         });
     });
 
-    describe('slice', function() {
-        it('handles an empty entity', async function() {
+    describe("slice", () => {
+        it("handles an empty entity", async () => {
             entity.nextPageResults.push({ items: [] });
 
             const sliced = await entity.slice();
             sliced.should.deep.equal([]);
         });
 
-        it('returns the whole next page', async function() {
+        it("returns the whole next page", async () => {
             entity.nextPageResults.push({ items: [
-                1, 2, 3, 4
+                1, 2, 3, 4,
             ] });
 
             const sliced = await entity.slice();

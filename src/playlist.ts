@@ -1,21 +1,25 @@
-const request = require('request-promise-native');
+import request from "request-promise-native";
 
-const { AuthedIterableEntity } = require('./iterable');
+import { ICreds } from "./creds";
+import { WatchHistory } from "./history";
+import { AuthedIterableEntity } from "./iterable";
+import { IVideo } from "./model";
 
-const PLAYLIST_ENDPOINT = 'https://www.googleapis.com/youtube/v3/playlistItems';
+const PLAYLIST_ENDPOINT = "https://www.googleapis.com/youtube/v3/playlistItems";
 
-class YoutubePlaylist extends AuthedIterableEntity {
-    constructor(creds, id) {
+export class YoutubePlaylist extends AuthedIterableEntity<IVideo> {
+    constructor(
+        creds: ICreds,
+        public readonly id: string,
+    ) {
         super(creds);
-
-        this.id = id;
     }
 
     /**
      * Given an instance of WatchHistory, attempt to
      * find the most recently-played item in this playlist.
      */
-    async findMostRecentlyPlayed(history) {
+    public async findMostRecentlyPlayed(history: WatchHistory) {
         const historySlice = await history.slice();
 
         for (const historyItem of historySlice) {
@@ -29,21 +33,24 @@ class YoutubePlaylist extends AuthedIterableEntity {
         throw new Error(`Couldn't find item to resume`);
     }
 
-    async _fetchNextPage(pageToken) {
+    public async _fetchNextPage(pageToken: string | undefined) {
+        if (!this.creds) throw new Error();
+
         const json = await request.get({
-            url: PLAYLIST_ENDPOINT,
             json: true,
             qs: {
                 key: this.creds.apiKey,
                 maxResults: 50,
-                part: 'snippet',
-                playlistId: this.id,
                 pageToken,
+                part: "snippet",
+                playlistId: this.id,
             },
+            url: PLAYLIST_ENDPOINT,
         });
 
         const nextPageToken = json.nextPageToken;
-        const items = json.items.map(({snippet}) => ({
+        const items = (json.items as any[]).map(({snippet}) => ({
+            desc: "", // ?
             id: snippet.resourceId.videoId,
             title: snippet.title,
         }));
@@ -51,7 +58,3 @@ class YoutubePlaylist extends AuthedIterableEntity {
         return { items, nextPageToken };
     }
 }
-
-module.exports = {
-    YoutubePlaylist,
-};
