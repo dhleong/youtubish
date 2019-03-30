@@ -1,4 +1,5 @@
 import { Credentials, ICreds } from "./creds";
+import { ISectionRenderer, Scraper } from "./scraper";
 
 export class OutOfBoundsError extends Error {
     constructor(message: string) {
@@ -10,7 +11,7 @@ class IteratorOf<T> implements AsyncIterator<T> {
     private i = 0;
 
     constructor(
-        private entity: IterableEntity<T>,
+        private entity: IterableEntity<T, any>,
     ) { }
 
     // NOTE: I'm not sure why the typescript defs for AsyncIterator
@@ -41,11 +42,16 @@ class IteratorOf<T> implements AsyncIterator<T> {
     }
 }
 
-export abstract class IterableEntity<T> implements AsyncIterable<T> {
+export interface IPage<T, TPageToken> {
+    items: T[];
+    nextPageToken?: TPageToken;
+}
+
+export abstract class IterableEntity<T, TPageToken> implements AsyncIterable<T> {
 
     /** @internal */
     public _items: T[] = [];
-    private _nextPageToken: string | undefined | null;
+    private _nextPageToken: TPageToken | undefined | null;
 
     public [Symbol.asyncIterator](): AsyncIterator<T> {
         return new IteratorOf(this);
@@ -122,10 +128,7 @@ export abstract class IterableEntity<T> implements AsyncIterable<T> {
     /** @internal */
     public get _hasMore() {
         return this._nextPageToken === undefined
-            || (
-                typeof this._nextPageToken === "string"
-                && this._nextPageToken.length
-            );
+            || this._nextPageToken !== null;
     }
 
     /** approximate size of each page */
@@ -138,8 +141,8 @@ export abstract class IterableEntity<T> implements AsyncIterable<T> {
      * `nextPageToken` is a non-empty string if there are more results
      */
     protected abstract async _fetchNextPage(
-        token: string | undefined,
-    ): Promise<{ items: T[], nextPageToken?: string}>;
+        token: TPageToken | undefined,
+    ): Promise<{ items: T[], nextPageToken?: TPageToken}>;
 
     protected async _doFetchNextPage() {
         if (!this._hasMore) throw new Error("No next page to fetch");
@@ -148,6 +151,9 @@ export abstract class IterableEntity<T> implements AsyncIterable<T> {
             this._nextPageToken || undefined,
         );
         this._nextPageToken = page.nextPageToken || null;
+        if (typeof this._nextPageToken === "string" && !this._nextPageToken.length) {
+            this._nextPageToken = null;
+        }
         this._items.push(...page.items);
     }
 
@@ -159,7 +165,7 @@ export abstract class IterableEntity<T> implements AsyncIterable<T> {
  * instance, and fills out `this.creds` before `_fetchNextPage` is
  * called
  */
-export abstract class AuthedIterableEntity<T> extends IterableEntity<T> {
+export abstract class AuthedIterableEntity<T> extends IterableEntity<T, string> {
 
     protected creds: Credentials | undefined;
     private _creds: ICreds;
@@ -176,4 +182,36 @@ export abstract class AuthedIterableEntity<T> extends IterableEntity<T> {
 
         return super._doFetchNextPage();
     }
+}
+
+export interface IScrapingContinuation {
+    clickTracking: string;
+    continuation: string;
+}
+
+export abstract class ScrapingIterableEntity<T> extends IterableEntity<T, IScrapingContinuation> {
+
+    /** @internal */
+    public scraper: Scraper;
+
+    constructor(
+        creds: ICreds,
+        private url: string,
+        private scrapePage: (section: ISectionRenderer) => IPage<T, IScrapingContinuation>,
+    ) {
+        super();
+        this.scraper = new Scraper(creds);
+    }
+
+    protected async _fetchNextPage(pageToken: IScrapingContinuation | undefined) {
+        let section: ISectionRenderer;
+        if (!pageToken) {
+            section = await this.scraper.loadTabSectionRenderer(this.url);
+        } else {
+            section = await this.scraper.continueTabSectionRenderer(pageToken);
+        }
+
+        return this.scrapePage(section);
+    }
+
 }

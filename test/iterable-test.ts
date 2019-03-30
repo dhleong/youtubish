@@ -5,7 +5,7 @@ import { IterableEntity } from "../src/iterable";
 // var expect = chai.expect;
 chai.should();
 
-class TestableIterable<T> extends IterableEntity<T> {
+class TestableIterable<T> extends IterableEntity<T, string> {
 
     public nextPageResults: Array<{ items: T[], nextPageToken?: string }> = [];
 
@@ -86,6 +86,33 @@ describe("IterableEntity", () => {
 
             const sliced = await entity.slice();
             sliced.should.deep.equal([1, 2, 3, 4]);
+        });
+
+        it("works with bounds", async () => {
+            entity.nextPageResults.push({ items: [
+                1, 2, 3, 4,
+            ] });
+
+            const end = await entity.slice(2);
+            end.should.deep.equal([3, 4]);
+
+            const start = await entity.slice(0, 2);
+            start.should.deep.equal([1, 2]);
+
+            const mid = await entity.slice(1, 3);
+            mid.should.deep.equal([2, 3]);
+        });
+
+        it("works across page boundaries", async () => {
+            entity.nextPageResults.push({ items: [
+                1, 2, 3, 4,
+            ], nextPageToken: "next" });
+            entity.nextPageResults.push({ items: [
+                5, 6, 7, 8,
+            ] });
+
+            const sliced = await entity.slice(2, 5);
+            sliced.should.deep.equal([3, 4, 5]);
         });
     });
 
