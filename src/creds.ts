@@ -4,13 +4,11 @@ import util from "util";
 const readFileAsync = util.promisify(fs.readFile);
 
 export interface ICredentials {
-    apiKey: string;
     cookies: string;
 }
 
 export class Credentials implements ICredentials {
     constructor(
-        public readonly apiKey: string,
         public readonly cookies: string,
     ) { }
 }
@@ -37,18 +35,7 @@ function curlParser(input: () => Promise<string | Buffer>) {
 }
 
 export class CredentialsBuilder {
-    private _apiKey: (() => Promise<string | Buffer>) | undefined;
     private _cookies: (() => Promise<string | Buffer>) | undefined;
-
-    public apiKey(key: string) {
-        this._apiKey = asyncLambda(key);
-        return this;
-    }
-
-    public apiKeyFromFile(file: string) {
-        this._apiKey = fileReader(file);
-        return this;
-    }
 
     public cookies(cookies: string) {
         this._cookies = asyncLambda(cookies);
@@ -71,13 +58,10 @@ export class CredentialsBuilder {
     }
 
     public async build() {
-        if (!this._apiKey) throw new Error("No API key provided");
         if (!this._cookies) throw new Error("No cookies provided");
 
-        const [ apiKey, cookies ] = await Promise.all([
-            this._apiKey(), this._cookies(),
-        ]);
-        return new Credentials(apiKey.toString(), cookies.toString());
+        const cookies = await this._cookies();
+        return new Credentials(cookies.toString());
     }
 }
 
