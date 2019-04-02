@@ -21,14 +21,15 @@ function extractJSON(html: string) {
 }
 
 function tokenExtractor(tokenName: string) {
-    const regex = new RegExp(`['"]${tokenName}['"][,: ]+"([^"]+)"`);
-    return (html: string) => {
+    const regex = new RegExp(`['"]${tokenName}['"][,: ]+(?:null|"([^"]+)")`);
+    return (html: string, required?: boolean) => {
         const result = html.match(regex);
         if (!result) {
             throw new Error("No match; format must have changed?");
         }
 
         const [, token] = result;
+        if (token === "null") return null;
         return token;
     };
 }
@@ -78,7 +79,24 @@ export class Scraper {
 
     public async loadTabSectionRenderer(url: string) {
         const json = await this.fetch(url);
-        return findTabSectionRenderer(json);
+
+        try {
+            return findTabSectionRenderer(json);
+        } catch (e) {
+            if (!this.cookies && !this.identityToken) {
+                throw new Error(
+                    "Unable to load resource; auth may be required" +
+                    "\nCaused by:\n" + e.stack,
+                );
+            } else if (!this.identityToken) {
+                throw new Error(
+                    "Unable to load resource; auth may be invalid" +
+                    "\nCaused by:\n" + e.stack,
+                );
+            } else {
+                throw e;
+            }
+        }
     }
 
     public async continueTabSectionRenderer(token: IScrapingContinuation) {
