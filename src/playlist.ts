@@ -40,8 +40,14 @@ export class YoutubePlaylist extends ScrapingIterableEntity<IVideo> {
     /**
      * Given an instance of WatchHistory, attempt to
      * find the most recently-played item in this playlist.
+     *
+     * @param historySearchLimit Max number of items in the
+     * history to search before giving up (default: 200)
      */
-    public async findMostRecentlyPlayed(history: WatchHistory) {
+    public async findMostRecentlyPlayed(
+        history: WatchHistory,
+        historySearchLimit: number = 200,
+    ) {
         // prefetch our first page in parallel with history
         // for a ~35% speed boost (~4s -> ~2.6s)
         const [ historySlice, _ ] = await Promise.all([
@@ -49,11 +55,16 @@ export class YoutubePlaylist extends ScrapingIterableEntity<IVideo> {
             this.slice(),
         ]);
 
-        for (const historyItem of historySlice) {
+        let historyIndex = 0;
+        for await (const historyItem of history) {
             for await (const item of this) {
                 if (item.id === historyItem.id) {
                     return item;
                 }
+            }
+
+            if (++historyIndex > historySearchLimit) {
+                break;
             }
         }
 
