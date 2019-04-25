@@ -2,7 +2,14 @@ import request from "request-promise-native";
 
 import { ICreds } from "./creds";
 import { WatchHistory } from "./history";
-import { AuthedIterableEntity, IterableEntity, ScrapingIterableEntity } from "./iterable";
+import {
+    AuthedIterableEntity,
+    DelegateIterable,
+    IIterableEntity,
+    isIterableEntity,
+    IterableEntity,
+    ScrapingIterableEntity,
+} from "./iterable";
 import { IVideo } from "./model";
 import { ISectionRenderer, pageTokenFromSectionRenderer } from "./scraper";
 
@@ -28,13 +35,38 @@ function scrapePlaylist(sectionRenderer: ISectionRenderer) {
     return { items, nextPageToken };
 }
 
-export class YoutubePlaylist extends ScrapingIterableEntity<IVideo> {
+class BaseYoutubePlaylist extends ScrapingIterableEntity<IVideo> {
 
     constructor(
         creds: ICreds,
         public readonly id: string,
     ) {
         super(creds, PLAYLIST_URL.replace("%s", id), scrapePlaylist);
+    }
+
+}
+
+export class YoutubePlaylist extends DelegateIterable<IVideo, YoutubePlaylist> {
+
+    constructor(
+        creds: ICreds,
+        id: string,
+    );
+
+    /** @internal Delegate factory */
+    constructor(base: IIterableEntity<IVideo, any>);
+
+    /** @internal actual constructor */
+    constructor(
+        credsOrBase: ICreds | IIterableEntity<IVideo, any>,
+        id?: string,
+    ) {
+        super(
+            isIterableEntity(credsOrBase)
+                ? credsOrBase
+                : new BaseYoutubePlaylist(credsOrBase as ICreds, id!),
+            YoutubePlaylist,
+        );
     }
 
     /**

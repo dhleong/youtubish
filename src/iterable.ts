@@ -47,7 +47,25 @@ export interface IPage<T, TPageToken> {
     nextPageToken?: TPageToken;
 }
 
-export abstract class IterableEntity<T, TPageToken> implements AsyncIterable<T> {
+export interface IIterableEntity<T, TSelf> extends AsyncIterable<T> {
+    get(index: number): Promise<T>;
+    filter(predicate: (item: T) => boolean): TSelf;
+    find(predicate: (item: T) => boolean): Promise<T | undefined>;
+    findIndex(predicate: (item: T) => boolean): Promise<number>;
+    findFirstMemberOf(
+        other: IIterableEntity<T, any>,
+        areEqual: (a: T, b: T) => boolean,
+    ): Promise<T | null>;
+    slice(start?: number, end?: number): Promise<T[]>;
+    take(count: number): TSelf;
+}
+
+export function isIterableEntity(v: any): v is IIterableEntity<any, any> {
+    return (v as any).findFirstMemberOf !== undefined;
+}
+
+export abstract class IterableEntity<T, TPageToken>
+implements IIterableEntity<T, IterableEntity<T, TPageToken>> {
 
     /** @internal */
     public _items: T[] = [];
@@ -275,6 +293,12 @@ export abstract class ScrapingIterableEntity<T> extends IterableEntity<T, IScrap
 
 }
 
+/**
+ * `WrappedIterableEntity` is a convenience base class for
+ * implementing lazy functional methods, such as `filter`, which
+ * share state with a delegate object while also imposing their
+ * own rules on the content of `this` entity.
+ */
 abstract class WrappedIterableEntity<T, TPageToken>
 extends IterableEntity<T, TPageToken> {
     constructor(
@@ -354,4 +378,52 @@ extends WrappedIterableEntity<T, TPageToken> {
 
         return result;
     }
+}
+
+/**
+ * A DelegateIterable bases its implementation off another IIterableEntity,
+ * but augments lazy functional methods like {@link filter} and
+ * {@link take} such that they return the same instance type. This is
+ * useful for types like {@link YoutubePlaylist} with have utility
+ * methods that you might want to access on `filter`'d versions,
+ * for example
+ */
+export abstract class DelegateIterable<T, TSelf> implements IIterableEntity<T, TSelf> {
+    constructor(
+        private base: IIterableEntity<T, any>,
+        private factory: new (base: IIterableEntity<T, any>) => TSelf,
+    ) { }
+
+    public get(index: number): Promise<T> {
+        return this.base.get(index);
+    }
+
+    public filter(predicate: (item: T) => boolean): TSelf {
+        return new this.factory(this.base.filter(predicate));
+    }
+
+    public find(predicate: (item: T) => boolean): Promise<T | undefined> {
+        return this.base.find(predicate);
+    }
+
+    public findIndex(predicate: (item: T) => boolean): Promise<number> {
+        return this.base.findIndex(predicate);
+    }
+
+    public findFirstMemberOf(other: IIterableEntity<T, any>, areEqual: (a: T, b: T) => boolean): Promise<T | null> {
+        return this.base.findFirstMemberOf(other, areEqual);
+    }
+
+    public slice(start?: number | undefined, end?: number | undefined): Promise<T[]> {
+        return this.base.slice(start, end);
+    }
+
+    public take(count: number): TSelf {
+        return new this.factory(this.base.take(count));
+    }
+
+    public [Symbol.asyncIterator](): AsyncIterator<T> {
+        return this.base[Symbol.asyncIterator]();
+    }
+
 }

@@ -1,7 +1,13 @@
 import request from "request-promise-native";
 
 import { ICreds } from "./creds";
-import { IScrapingContinuation, ScrapingIterableEntity } from "./iterable";
+import {
+    DelegateIterable,
+    IIterableEntity,
+    IScrapingContinuation,
+    isIterableEntity,
+    ScrapingIterableEntity,
+} from "./iterable";
 import { IVideo } from "./model";
 import { ISectionRenderer, pageTokenFromSectionRenderer, Scraper } from "./scraper";
 
@@ -21,10 +27,33 @@ function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
     return { items, nextPageToken };
 }
 
-export class WatchHistory extends ScrapingIterableEntity<IVideo> {
+class BaseWatchHistory extends ScrapingIterableEntity<IVideo> {
 
     constructor(creds: ICreds) {
         super(creds, HISTORY_URL, scrapeWatchHistory);
     }
 
+}
+
+export class WatchHistory extends DelegateIterable<IVideo, WatchHistory> {
+
+    constructor(
+        creds: ICreds,
+    );
+
+    /** @internal Delegate factory */
+    // tslint:disable-next-line unified-signatures to hide internal constructor
+    constructor(base: IIterableEntity<IVideo, any>);
+
+    /** @internal actual constructor */
+    constructor(
+        credsOrBase: ICreds | IIterableEntity<IVideo, any>,
+    ) {
+        super(
+            isIterableEntity(credsOrBase)
+                ? credsOrBase
+                : new BaseWatchHistory(credsOrBase as ICreds),
+            WatchHistory,
+        );
+    }
 }
