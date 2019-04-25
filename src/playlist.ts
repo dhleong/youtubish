@@ -49,7 +49,7 @@ export class YoutubePlaylist extends ScrapingIterableEntity<IVideo> {
         historySearchLimit: number = 200,
     ) {
         const limited = history.take(historySearchLimit);
-        const found = this.findFirstMemberOf(limited, (a, b) => a.id === b.id);
+        const found = await this.findFirstMemberOf(limited, (a, b) => a.id === b.id);
 
         if (!found) {
             throw new Error(`Couldn't find item to resume`);
