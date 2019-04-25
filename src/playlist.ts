@@ -2,7 +2,7 @@ import request from "request-promise-native";
 
 import { ICreds } from "./creds";
 import { WatchHistory } from "./history";
-import { AuthedIterableEntity, ScrapingIterableEntity } from "./iterable";
+import { AuthedIterableEntity, IterableEntity, ScrapingIterableEntity } from "./iterable";
 import { IVideo } from "./model";
 import { ISectionRenderer, pageTokenFromSectionRenderer } from "./scraper";
 
@@ -48,27 +48,14 @@ export class YoutubePlaylist extends ScrapingIterableEntity<IVideo> {
         history: WatchHistory,
         historySearchLimit: number = 200,
     ) {
-        // prefetch our first page in parallel with history
-        // for a ~35% speed boost (~4s -> ~2.6s)
-        const [ historySlice, _ ] = await Promise.all([
-            history.slice(),
-            this.slice(),
-        ]);
+        const limited = history.take(historySearchLimit);
+        const found = this.findFirstMemberOf(limited, (a, b) => a.id === b.id);
 
-        let historyIndex = 0;
-        for await (const historyItem of history) {
-            for await (const item of this) {
-                if (item.id === historyItem.id) {
-                    return item;
-                }
-            }
-
-            if (++historyIndex > historySearchLimit) {
-                break;
-            }
+        if (!found) {
+            throw new Error(`Couldn't find item to resume`);
         }
 
-        throw new Error(`Couldn't find item to resume`);
+        return found;
     }
 
 }

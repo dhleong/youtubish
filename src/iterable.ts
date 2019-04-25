@@ -51,7 +51,9 @@ export abstract class IterableEntity<T, TPageToken> implements AsyncIterable<T> 
 
     /** @internal */
     public _items: T[] = [];
-    private _nextPageToken: TPageToken | undefined | null;
+
+    /** @internal */
+    public _nextPageToken: TPageToken | undefined | null;
 
     public [Symbol.asyncIterator](): AsyncIterator<T> {
         return new IteratorOf(this);
@@ -82,6 +84,51 @@ export abstract class IterableEntity<T, TPageToken> implements AsyncIterable<T> 
         const index = await this.findIndex(predicate);
         if (index === -1) return;
         return this._items[index];
+    }
+
+    /**
+     * Find the first item in `other` that is also in this Iterable.
+     * This operation might iterate over every item in *this*
+     * Iterable for each item checked `other`, so if at all possible
+     * you should prefer to pass the larger Iterable as the argument
+     * rather than as `this`.
+     *
+     * Returns null if no matching item was found
+     */
+    public async findFirstMemberOf(
+        other: IterableEntity<T, any>,
+        areEqual: (a: T, b: T) => boolean,
+    ) {
+        // prefetch the first page in parallel
+        // for a ~35% speed boost (~4s -> ~2.6s)
+        await Promise.all([
+            other.slice(),
+            this.slice(),
+        ]);
+
+        for await (const otherItem of other) {
+            for await (const item of this) {
+                if (areEqual(item, otherItem)) {
+                    return item;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Return a new IterableEntity based on this one
+     * that only contains items for which `predicate`
+     * returns `true`.
+     */
+    public filter(
+        predicate: (item: T) => boolean,
+    ): IterableEntity<T, TPageToken> {
+        return new FilteredIterableEntity(
+            this,
+            predicate,
+        );
     }
 
     /**
@@ -125,6 +172,17 @@ export abstract class IterableEntity<T, TPageToken> implements AsyncIterable<T> 
         return this._items.slice(start, end);
     }
 
+    /**
+     * Lazy operation that returns up to the first `count` items
+     * in this iterable.
+     */
+    public take(count: number) {
+        return new CountLimitedIterableEntity<T, TPageToken>(
+            this,
+            count,
+        );
+    }
+
     /** @internal */
     public get _hasMore() {
         return this._nextPageToken === undefined
@@ -142,9 +200,9 @@ export abstract class IterableEntity<T, TPageToken> implements AsyncIterable<T> 
      */
     protected abstract async _fetchNextPage(
         token: TPageToken | undefined,
-    ): Promise<{ items: T[], nextPageToken?: TPageToken}>;
+    ): Promise<IPage<T, TPageToken>>;
 
-    protected async _doFetchNextPage() {
+    protected async _doFetchNextPage(): Promise<IPage<T, TPageToken>> {
         if (!this._hasMore) throw new Error("No next page to fetch");
 
         const page = await this._fetchNextPage(
@@ -155,6 +213,7 @@ export abstract class IterableEntity<T, TPageToken> implements AsyncIterable<T> 
             this._nextPageToken = null;
         }
         this._items.push(...page.items);
+        return page;
     }
 
 }
@@ -214,4 +273,85 @@ export abstract class ScrapingIterableEntity<T> extends IterableEntity<T, IScrap
         return this.scrapePage(section);
     }
 
+}
+
+abstract class WrappedIterableEntity<T, TPageToken>
+extends IterableEntity<T, TPageToken> {
+    constructor(
+        protected base: IterableEntity<T, TPageToken>,
+    ) {
+        super();
+    }
+
+    protected get _pageSize() {
+        // HAX as below:
+        return (this.base as any)._pageSize as number;
+    }
+
+    protected async fetchBaseNextPage(token: TPageToken | undefined) {
+        // HAX to simply access the protected method;
+        // we could make it @internal public but that feels like
+        // an annoying limitation on consumers of this library
+        // being unable to extend IterableEntity...
+        // NOTE: we use _doFetchNextPage so we don't corrupt the
+        // original entity's state by failing to update eg: nextPageToken
+        const result: IPage<T, TPageToken> =
+            await (this.base as any)._doFetchNextPage(token);
+
+        return result;
+    }
+}
+
+class FilteredIterableEntity<T, TPageToken>
+extends WrappedIterableEntity<T, TPageToken> {
+
+    constructor(
+        base: IterableEntity<T, TPageToken>,
+        private predicate: (item: T) => boolean,
+    ) {
+        super(base);
+
+        // copy state
+        this._items = base._items.slice().filter(this.predicate);
+        this._nextPageToken = base._nextPageToken;
+    }
+
+    protected async _fetchNextPage(token: TPageToken | undefined) {
+        const result = await this.fetchBaseNextPage(token);
+        result.items = result.items.filter(this.predicate);
+        return result;
+    }
+}
+
+class CountLimitedIterableEntity<T, TPageToken>
+extends WrappedIterableEntity<T, TPageToken> {
+    constructor(
+        base: IterableEntity<T, TPageToken>,
+        private count: number,
+    ) {
+        super(base);
+
+        // copy state
+        this._items = base._items.slice(0, count);
+        if (this._items.length < count) {
+            this._nextPageToken = base._nextPageToken;
+        } else {
+            // we got as much as we will ever want
+            this._nextPageToken = null;
+        }
+    }
+
+    protected async _fetchNextPage(token: TPageToken | undefined) {
+        const result = await this.fetchBaseNextPage(token);
+
+        const remaining = this.count - this._items.length;
+        result.items = result.items.slice(0, remaining);
+
+        if (result.items.length === remaining) {
+            // no more room!
+            result.nextPageToken = undefined;
+        }
+
+        return result;
+    }
 }

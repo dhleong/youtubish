@@ -116,4 +116,101 @@ describe("IterableEntity", () => {
         });
     });
 
+    describe("findFirstMemberOf", () => {
+        it("works multiple times", async () => {
+            entity.nextPageResults.push({ items: [
+                1, 2, 3, 4,
+            ] });
+
+            const other = new TestableIterable<number>();
+            other.nextPageResults.push({ items: [
+                2, 4,
+            ] });
+
+            const areEqual = (a: number, b: number) => a === b;
+            const result1 = await entity.findFirstMemberOf(other, areEqual);
+            if (!result1) throw new Error();
+            result1.should.equal(2);
+
+            const result2 = await entity.findFirstMemberOf(other, areEqual);
+            if (!result2) throw new Error();
+            result2.should.equal(2);
+        });
+    });
+
+    describe(".filter()'d ", () => {
+        it("reuses original Iterable's storage", async () => {
+            entity.nextPageResults.push({ items: [
+                1, 2, 3, 4,
+            ], nextPageToken: "next" });
+
+            const originalNth = await entity.get(2);
+
+            // NOTE: if we did not copy existing state,
+            // we would get an "Imbalance" error on filtered.get
+            // trying to make a network request
+            const filtered = entity.filter(it => it < 4);
+            const filteredNth = await filtered.get(2);
+
+            filteredNth.should.equal(originalNth);
+            entity._hasMore.should.be.true;
+            filtered._hasMore.should.be.true;
+        });
+
+    });
+
+    describe(".take()'d ", () => {
+        it("reuses original Iterable's storage", async () => {
+            entity.nextPageResults.push({ items: [
+                1, 2, 3, 4,
+            ], nextPageToken: "next" });
+
+            const originalNth = await entity.get(2);
+
+            // NOTE: if we did not copy existing state,
+            // we would get an "Imbalance" error on filtered.get
+            // trying to make a network request
+            const taken = entity.take(3);
+            const takenNth = await taken.get(2);
+
+            takenNth.should.equal(originalNth);
+            entity._hasMore.should.be.true;
+
+            // NOTE: we already have 3
+            taken._hasMore.should.be.false;
+        });
+
+        it("prevents further fetches", async () => {
+            entity.nextPageResults.push({ items: [
+                1, 2, 3, 4,
+            ], nextPageToken: "next" });
+
+            // taking before the original has fetched any state
+            const taken = entity.take(3);
+            const takenNth = await taken.get(2);
+            takenNth.should.equal(3);
+
+            // NOTE: we already have 3
+            taken._hasMore.should.be.false;
+            entity._hasMore.should.be.true;
+
+        });
+
+        it("does not break original entity's state", async () => {
+            entity.nextPageResults.push({ items: [
+                1, 2, 3, 4,
+            ], nextPageToken: "next" });
+
+            // taking before the original has fetched any state
+            const taken = entity.take(3);
+            const takenNth = await taken.get(2);
+            takenNth.should.equal(3);
+
+            // NOTE: we already have 3
+            taken._hasMore.should.be.false;
+            entity._hasMore.should.be.true;
+
+            (await entity.get(3)).should.equal(4);
+        });
+    });
 });
