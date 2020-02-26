@@ -4,12 +4,11 @@ import { ICreds } from "./creds";
 import {
     DelegateIterable,
     IIterableEntity,
-    IScrapingContinuation,
     isIterableEntity,
-    ScrapingIterableEntity,
 } from "./iterable";
+import { PolymerScrapingIterableEntity } from "./iterable/polymer";
 import { IVideo } from "./model";
-import { ISectionRenderer, pageTokenFromSectionRenderer, Scraper } from "./scraper";
+import { ISectionRenderer, pageTokenFromSectionRenderer, Scraper } from "./scraper/polymer";
 
 const HISTORY_URL = "https://www.youtube.com/feed/history";
 
@@ -27,7 +26,7 @@ function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
     return { items, nextPageToken };
 }
 
-class BaseWatchHistory extends ScrapingIterableEntity<IVideo> {
+class PolymerWatchHistory extends PolymerScrapingIterableEntity<IVideo> {
 
     constructor(creds: ICreds) {
         super(creds, HISTORY_URL, scrapeWatchHistory);
@@ -52,7 +51,7 @@ export class WatchHistory extends DelegateIterable<IVideo, WatchHistory> {
         super(
             isIterableEntity(credsOrBase)
                 ? credsOrBase
-                : new BaseWatchHistory(credsOrBase as ICreds),
+                : new PolymerWatchHistory(credsOrBase as ICreds),
             WatchHistory,
         );
     }
