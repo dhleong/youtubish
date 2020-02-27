@@ -1,7 +1,7 @@
 import request from "request-promise-native";
 
-import { ICreds } from "./creds";
-import { IScrapingContinuation } from "./iterable";
+import { ICreds } from "../creds";
+import { IPolymerScrapingContinuation } from "../iterable/polymer";
 
 // using this agent triggers Google to return some JSON we can consume
 // tslint:disable-next-line max-line-length
@@ -9,10 +9,13 @@ const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/
 
 const CONTINUATION_URL = "https://www.youtube.com/browse_ajax";
 
+import fs from "fs";
+
 function extractJSON(html: string) {
     const result = html.match(/window\["ytInitialData"\] = (\{.+\});$/m);
     if (!result) {
         // save so we can test
+        fs.writeFileSync("out.html", html);
         throw new Error("No match; format must have changed?");
     }
 
@@ -99,7 +102,7 @@ export class Scraper {
         }
     }
 
-    public async continueTabSectionRenderer(token: IScrapingContinuation) {
+    public async continueTabSectionRenderer(token: IPolymerScrapingContinuation) {
         const json = await this.loadJson(CONTINUATION_URL, {
             form: {
                 session_token: this.xsrfToken,
@@ -129,11 +132,21 @@ export class Scraper {
     }
 
     private async scrapeJson(url: string) {
+        const headers: any = {
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
+            "Host": "www.youtube.com",
+            "User-Agent": USER_AGENT,
+        };
+
+        const cookies = await this.getCookies();
+        if (cookies) {
+            headers.Cookie = cookies;
+        }
+
         const html = await request.get({
-            headers: {
-                "Cookie": await this.getCookies(),
-                "User-Agent": USER_AGENT,
-            },
+            headers,
             url,
         });
 

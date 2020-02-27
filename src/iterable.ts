@@ -1,5 +1,4 @@
 import { Credentials, ICreds } from "./creds";
-import { ISectionRenderer, Scraper } from "./scraper";
 
 export class OutOfBoundsError extends Error {
     constructor(message: string) {
@@ -61,6 +60,7 @@ export interface IIterableEntity<T, TSelf> extends AsyncIterable<T> {
 }
 
 export function isIterableEntity(v: any): v is IIterableEntity<any, any> {
+    if (!v) return false;
     return (v as any).findFirstMemberOf !== undefined;
 }
 
@@ -259,38 +259,6 @@ export abstract class AuthedIterableEntity<T> extends IterableEntity<T, string> 
 
         return super._doFetchNextPage();
     }
-}
-
-export interface IScrapingContinuation {
-    clickTracking: string;
-    continuation: string;
-}
-
-export abstract class ScrapingIterableEntity<T> extends IterableEntity<T, IScrapingContinuation> {
-
-    /** @internal */
-    public scraper: Scraper;
-
-    constructor(
-        creds: ICreds,
-        private url: string,
-        private scrapePage: (section: ISectionRenderer) => IPage<T, IScrapingContinuation>,
-    ) {
-        super();
-        this.scraper = new Scraper(creds);
-    }
-
-    protected async _fetchNextPage(pageToken: IScrapingContinuation | undefined) {
-        let section: ISectionRenderer;
-        if (!pageToken) {
-            section = await this.scraper.loadTabSectionRenderer(this.url);
-        } else {
-            section = await this.scraper.continueTabSectionRenderer(pageToken);
-        }
-
-        return this.scrapePage(section);
-    }
-
 }
 
 /**

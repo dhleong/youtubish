@@ -8,12 +8,17 @@ import {
     IIterableEntity,
     isIterableEntity,
     IterableEntity,
-    ScrapingIterableEntity,
 } from "./iterable";
+import { AngularScrapingIterableEntity } from "./iterable/angular";
+import { PolymerScrapingIterableEntity } from "./iterable/polymer";
 import { IVideo } from "./model";
-import { ISectionRenderer, pageTokenFromSectionRenderer } from "./scraper";
+import { ISectionRenderer, pageTokenFromSectionRenderer } from "./scraper/polymer";
 
 const PLAYLIST_URL = "https://www.youtube.com/playlist?list=%s";
+
+//
+// Polymer implementation
+//
 
 function scrapePlaylist(sectionRenderer: ISectionRenderer) {
     if (!sectionRenderer.contents.length) {
@@ -35,10 +40,10 @@ function scrapePlaylist(sectionRenderer: ISectionRenderer) {
     return { items, nextPageToken };
 }
 
-class BaseYoutubePlaylist extends ScrapingIterableEntity<IVideo> {
+class PolymerYoutubePlaylist extends PolymerScrapingIterableEntity<IVideo> {
 
     constructor(
-        creds: ICreds,
+        creds: ICreds | undefined,
         public readonly id: string,
     ) {
         super(creds, PLAYLIST_URL.replace("%s", id), scrapePlaylist);
@@ -46,25 +51,63 @@ class BaseYoutubePlaylist extends ScrapingIterableEntity<IVideo> {
 
 }
 
+//
+// Angular implementation
+//
+
+function angularScrapePlaylist(
+    $: CheerioStatic,
+) {
+    const items: IVideo[] = $(".pl-video").map((_, element) => {
+        const el = $(element);
+        return {
+            desc: "",
+            id: el.attr("data-video-id"),
+            title: el.attr("data-title"),
+        };
+    }).get();
+
+    return { items };
+}
+
+class AngularYoutubePlaylist extends AngularScrapingIterableEntity<IVideo> {
+
+    constructor(
+        creds: ICreds | undefined,
+        public readonly id: string,
+    ) {
+        super(creds, PLAYLIST_URL.replace("%s", id), angularScrapePlaylist);
+    }
+
+}
+
+//
+// Public, exported implementation
+//
+
 export class YoutubePlaylist extends DelegateIterable<IVideo, YoutubePlaylist> {
 
+    constructor(id: string);
     constructor(
         creds: ICreds,
         id: string,
     );
 
     /** @internal Delegate factory */
+    // tslint:disable-next-line unified-signatures
     constructor(base: IIterableEntity<IVideo, any>);
 
     /** @internal actual constructor */
     constructor(
-        credsOrBase: ICreds | IIterableEntity<IVideo, any>,
+        credsOrBaseOrId: ICreds | IIterableEntity<IVideo, any> | string,
         id?: string,
     ) {
         super(
-            isIterableEntity(credsOrBase)
-                ? credsOrBase
-                : new BaseYoutubePlaylist(credsOrBase as ICreds, id!),
+            typeof credsOrBaseOrId === "string"
+                ? new AngularYoutubePlaylist(undefined, credsOrBaseOrId)
+                : isIterableEntity(credsOrBaseOrId)
+                    ? credsOrBaseOrId
+                    : new AngularYoutubePlaylist(credsOrBaseOrId as ICreds, id!),
             YoutubePlaylist,
         );
     }

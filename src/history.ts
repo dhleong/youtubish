@@ -4,14 +4,18 @@ import { ICreds } from "./creds";
 import {
     DelegateIterable,
     IIterableEntity,
-    IScrapingContinuation,
     isIterableEntity,
-    ScrapingIterableEntity,
 } from "./iterable";
+import { AngularScrapingIterableEntity } from "./iterable/angular";
+import { PolymerScrapingIterableEntity } from "./iterable/polymer";
 import { IVideo } from "./model";
-import { ISectionRenderer, pageTokenFromSectionRenderer, Scraper } from "./scraper";
+import { ISectionRenderer, pageTokenFromSectionRenderer, Scraper } from "./scraper/polymer";
 
 const HISTORY_URL = "https://www.youtube.com/feed/history";
+
+//
+// Polymer implementation
+//
 
 function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
     const items = sectionRenderer.contents.map(({videoRenderer: renderer}) => ({
@@ -27,13 +31,44 @@ function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
     return { items, nextPageToken };
 }
 
-class BaseWatchHistory extends ScrapingIterableEntity<IVideo> {
+class PolymerWatchHistory extends PolymerScrapingIterableEntity<IVideo> {
 
     constructor(creds: ICreds) {
         super(creds, HISTORY_URL, scrapeWatchHistory);
     }
 
 }
+
+//
+// Angular implementation
+//
+
+function angularScrapeWatchHistory(
+    $: CheerioStatic,
+) {
+    const items: IVideo[] = $(".yt-lockup").map((_, element) => {
+        const el = $(element);
+        return {
+            desc: el.find(".yt-lockup-description").text(),
+            id: el.attr("data-context-item-id"),
+            title: el.find(".yt-uix-tile-link").attr("title"),
+        };
+    }).get();
+
+    return { items };
+}
+
+class AngularWatchHistory extends AngularScrapingIterableEntity<IVideo> {
+
+    constructor(creds: ICreds) {
+        super(creds, HISTORY_URL, angularScrapeWatchHistory);
+    }
+
+}
+
+//
+// Public, exported implementation
+//
 
 export class WatchHistory extends DelegateIterable<IVideo, WatchHistory> {
 
@@ -52,7 +87,7 @@ export class WatchHistory extends DelegateIterable<IVideo, WatchHistory> {
         super(
             isIterableEntity(credsOrBase)
                 ? credsOrBase
-                : new BaseWatchHistory(credsOrBase as ICreds),
+                : new AngularWatchHistory(credsOrBase as ICreds),
             WatchHistory,
         );
     }
