@@ -67,21 +67,7 @@ function angularScrapePlaylist(
         };
     }).get();
 
-    const loadMoreButton = $(".load-more-button");
-    const loadMoreUrl = loadMoreButton.attr("data-uix-load-more-href");
-    const loadMoreWidgetId = loadMoreButton.attr("data-uix-load-more-target-id");
-    const contentElement = loadMoreWidgetId
-        ? $("#" + loadMoreWidgetId).parent().prop("tagName")
-        : "div";
-
-    const nextPageToken = loadMoreUrl
-        ? { loadMoreUrl, loadMoreWidgetId, contentElement }
-        : undefined;
-
-    return {
-        items,
-        nextPageToken,
-    };
+    return { items };
 }
 
 class AngularYoutubePlaylist extends AngularScrapingIterableEntity<IVideo> {
