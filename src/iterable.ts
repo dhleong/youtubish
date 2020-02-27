@@ -1,4 +1,4 @@
-import { Credentials, ICreds } from "./creds";
+import { asCredentialsManager, ICredentials, ICreds } from "./creds";
 
 export class OutOfBoundsError extends Error {
     constructor(message: string) {
@@ -234,31 +234,6 @@ implements IIterableEntity<T, IterableEntity<T, TPageToken>> {
         return page;
     }
 
-}
-
-/**
- * Convenience subclass of IterableEntity that can accept either a
- * Credentials instance or a Promise that resolves to a Credentials
- * instance, and fills out `this.creds` before `_fetchNextPage` is
- * called
- */
-export abstract class AuthedIterableEntity<T> extends IterableEntity<T, string> {
-
-    protected creds: Credentials | undefined;
-    private _creds: ICreds;
-
-    constructor(creds: ICreds) {
-        super();
-        this._creds = creds;
-    }
-
-    protected async _doFetchNextPage() {
-        if (!this.creds) {
-            this.creds = await this._creds;
-        }
-
-        return super._doFetchNextPage();
-    }
 }
 
 /**

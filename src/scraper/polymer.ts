@@ -1,6 +1,6 @@
 import request from "request-promise-native";
 
-import { ICreds } from "../creds";
+import { asCachedCredentialsManager, ICredentialsManager, ICreds } from "../creds";
 import { IPolymerScrapingContinuation } from "../iterable/polymer";
 
 // using this agent triggers Google to return some JSON we can consume
@@ -74,11 +74,13 @@ export class Scraper {
     private identityToken: string | undefined;
     private xsrfToken: string | undefined;
 
-    private cookies: string | undefined;
+    private creds: ICredentialsManager;
 
     constructor(
-        private creds?: ICreds,
-    ) {}
+        creds?: ICreds,
+    ) {
+        this.creds = asCachedCredentialsManager(creds);
+    }
 
     public async loadTabSectionRenderer(url: string) {
         const json = await this.fetch(url);
@@ -86,7 +88,8 @@ export class Scraper {
         try {
             return findTabSectionRenderer(json);
         } catch (e) {
-            if (!this.cookies && !this.identityToken) {
+            const creds = await this.creds.get();
+            if (!creds && !this.identityToken) {
                 throw new Error(
                     "Unable to load resource; auth may be required" +
                     "\nCaused by:\n" + e.stack,
@@ -180,16 +183,7 @@ export class Scraper {
     }
 
     private async getCookies() {
-        if (this.cookies) return this.cookies;
-
-        if (this.creds instanceof Promise) {
-            const creds = await this.creds;
-            this.cookies = creds.cookies;
-            return creds.cookies;
-        }
-
-        if (this.creds) {
-            return this.creds.cookies;
-        }
+        const creds = await this.creds.get();
+        if (creds) return creds.cookies;
     }
 }

@@ -7,6 +7,20 @@ export interface ICredentials {
     cookies: string;
 }
 
+export function isCredentials(creds: ICreds): creds is ICredentials {
+    return (creds as any).cookies;
+}
+
+export function isCredentialsPromise(creds: ICreds): creds is Promise<ICredentials> {
+    if (!creds) return false;
+    return typeof (creds as any).then === "function";
+}
+
+export interface ICredentialsManager {
+    get(): Promise<ICredentials | undefined>;
+    set(credentials: ICredentials): Promise<void>;
+}
+
 export class Credentials implements ICredentials {
     constructor(
         public readonly cookies: string,
@@ -65,4 +79,73 @@ export class CredentialsBuilder {
     }
 }
 
-export type ICreds = ICredentials | Promise<ICredentials>;
+class StaticCredentialsManager implements ICredentialsManager {
+    constructor(
+        private readonly creds: ICredentials | Promise<ICredentials>,
+    ) {}
+
+    public async get() {
+        return this.creds;
+    }
+
+    public async set(creds: ICredentials) {
+        // nop
+    }
+}
+
+class NopCredentialsManager implements ICredentialsManager {
+    public async get() {
+        return undefined;
+    }
+
+    public async set(creds: ICredentials) {
+        // nop
+    }
+}
+
+class CachingCredentialsManager implements ICredentialsManager {
+
+    private cached: ICredentials | undefined;
+
+    constructor(
+        private readonly delegate: ICredentialsManager,
+    ) {}
+
+    public async get() {
+        if (this.cached) return this.cached;
+
+        const creds = await this.delegate.get();
+        this.cached = creds;
+        return creds;
+    }
+
+    public async set(creds: ICredentials) {
+        this.cached = creds;
+        return this.delegate.set(creds);
+    }
+}
+
+export function asCredentialsManager(creds: ICreds | undefined): ICredentialsManager {
+    if (!creds) return new NopCredentialsManager();
+    if (isCredentials(creds) || isCredentialsPromise(creds)) {
+        return new StaticCredentialsManager(creds);
+    }
+    return creds;
+}
+
+export function cached(credentialsManager: ICredentialsManager): ICredentialsManager {
+    if (
+        credentialsManager instanceof CachingCredentialsManager
+        || credentialsManager instanceof NopCredentialsManager
+    ) {
+        return credentialsManager;
+    }
+
+    return new CachingCredentialsManager(credentialsManager);
+}
+
+export function asCachedCredentialsManager(creds: ICreds | undefined): ICredentialsManager {
+    return cached(asCredentialsManager(creds));
+}
+
+export type ICreds = ICredentials | Promise<ICredentials> | ICredentialsManager;
