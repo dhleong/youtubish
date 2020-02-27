@@ -1,9 +1,5 @@
 import request from "request-promise-native";
 
-// tslint:disable no-var-requires  STOPSHIP
-const debug: any = require("request-debug");
-debug(request);
-
 import { ICreds } from "../creds";
 import { IPolymerScrapingContinuation } from "../iterable/polymer";
 
