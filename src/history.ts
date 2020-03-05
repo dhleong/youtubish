@@ -46,6 +46,10 @@ class PolymerWatchHistory extends PolymerScrapingIterableEntity<IVideo> {
 function angularScrapeWatchHistory(
     $: CheerioStatic,
 ) {
+    if ($(".signin-container").length) {
+        throw new Error("Signed out");
+    }
+
     const items: IVideo[] = $(".yt-lockup").map((_, element) => {
         const el = $(element);
         return {
