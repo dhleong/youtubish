@@ -1,9 +1,4 @@
-import _debug from "debug";
-const debug = _debug("youtubish:history");
-
 import request from "request-promise-native";
-
-import fs from "fs";
 
 import { ICreds } from "./creds";
 import {
