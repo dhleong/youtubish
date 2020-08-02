@@ -14,32 +14,18 @@ import {
 import { AngularScrapingIterableEntity } from "./iterable/angular";
 import { PolymerScrapingIterableEntity } from "./iterable/polymer";
 import { IVideo } from "./model";
-import { ISectionRenderer, pageTokenFromSectionRenderer, Scraper } from "./scraper/polymer";
+import {
+    ISectionRenderer,
+    pageTokenFromSectionRenderer,
+    textFromObject,
+    Scraper,
+} from "./scraper/polymer";
 
 const HISTORY_URL = "https://www.youtube.com/feed/history";
 
 //
 // Polymer implementation
 //
-
-function textFromObject(obj: any) {
-    if (!obj) return "";
-    if (typeof obj !== "object") {
-        debug("unexpected text object format:", obj);
-        return "";
-    }
-
-    if (obj.runs) {
-        return obj.runs.map((run: any) => run.text).join(" ");
-    }
-
-    if (obj.simpleText) {
-        return obj.simpleText as string;
-    }
-
-    debug("unexpected text object type:", obj);
-    return "";
-}
 
 function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
     const items = sectionRenderer.contents.map(({videoRenderer: renderer}) => {

@@ -11,7 +11,11 @@ import {
 import { AngularScrapingIterableEntity } from "./iterable/angular";
 import { PolymerScrapingIterableEntity } from "./iterable/polymer";
 import { IVideo } from "./model";
-import { ISectionRenderer, pageTokenFromSectionRenderer } from "./scraper/polymer";
+import {
+    ISectionRenderer,
+    pageTokenFromSectionRenderer,
+    textFromObject,
+} from "./scraper/polymer";
 
 const PLAYLIST_URL = "https://www.youtube.com/playlist?list=%s";
 
@@ -27,13 +31,13 @@ function scrapePlaylist(sectionRenderer: ISectionRenderer) {
         sectionRenderer = sectionRenderer.contents[0].playlistVideoListRenderer;
     }
 
-    const items = sectionRenderer.contents.map(({playlistVideoRenderer: renderer}) => ({
-        desc: renderer.descriptionSnippet
-            ? renderer.descriptionSnippet.simpleText
-            : "",
-        id: renderer.videoId,
-        title: renderer.title.simpleText,
-    }));
+    const items = sectionRenderer.contents.map(({playlistVideoRenderer: renderer}) => {
+        return {
+            desc: textFromObject(renderer.descriptionSnippet),
+            id: renderer.videoId,
+            title: textFromObject(renderer.title),
+        }
+    });
     const nextPageToken = pageTokenFromSectionRenderer(sectionRenderer);
 
     return { items, nextPageToken };
