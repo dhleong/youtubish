@@ -186,7 +186,14 @@ implements IIterableEntity<T, IterableEntity<T, TPageToken>> {
             return this._items.slice(start);
         }
 
-        await this.get(end - 1);
+        try {
+            await this.get(end - 1);
+        } catch (e) {
+            // ignore OutOfBounds with slice; just slice what we have
+            if (!(e instanceof OutOfBoundsError)) {
+                throw e;
+            }
+        }
         return this._items.slice(start, end);
     }
 
