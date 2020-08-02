@@ -1,4 +1,9 @@
+import _debug from "debug";
+const debug = _debug("youtubish:history");
+
 import request from "request-promise-native";
+
+import fs from "fs";
 
 import { ICreds } from "./creds";
 import {
@@ -17,14 +22,33 @@ const HISTORY_URL = "https://www.youtube.com/feed/history";
 // Polymer implementation
 //
 
+function textFromObject(obj: any) {
+    if (!obj) return "";
+    if (typeof obj !== "object") {
+        debug("unexpected text object format:", obj);
+        return "";
+    }
+
+    if (obj.runs) {
+        return obj.runs.map((run: any) => run.text).join(" ");
+    }
+
+    if (obj.simpleText) {
+        return obj.simpleText as string;
+    }
+
+    debug("unexpected text object type:", obj);
+    return "";
+}
+
 function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
-    const items = sectionRenderer.contents.map(({videoRenderer: renderer}) => ({
-        desc: renderer.descriptionSnippet
-            ? renderer.descriptionSnippet.simpleText
-            : "",
-        id: renderer.videoId,
-        title: renderer.title.simpleText,
-    }));
+    const items = sectionRenderer.contents.map(({videoRenderer: renderer}) => {
+        return {
+            desc: textFromObject(renderer.descriptionSnippet),
+            id: renderer.videoId,
+            title: textFromObject(renderer.title),
+        }
+    });
 
     const nextPageToken = pageTokenFromSectionRenderer(sectionRenderer);
 
@@ -41,6 +65,8 @@ class PolymerWatchHistory extends PolymerScrapingIterableEntity<IVideo> {
 
 //
 // Angular implementation
+// NOTE: it seems google is now finally going to kill this version, and is
+// starting to ignore the disable_polymer query param...
 //
 
 function angularScrapeWatchHistory(
@@ -91,7 +117,7 @@ export class WatchHistory extends DelegateIterable<IVideo, WatchHistory> {
         super(
             isIterableEntity(credsOrBase)
                 ? credsOrBase
-                : new AngularWatchHistory(credsOrBase as ICreds),
+                : new PolymerWatchHistory(credsOrBase as ICreds),
             WatchHistory,
         );
     }
