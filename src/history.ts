@@ -9,7 +9,12 @@ import {
 import { AngularScrapingIterableEntity } from "./iterable/angular";
 import { PolymerScrapingIterableEntity } from "./iterable/polymer";
 import { IVideo } from "./model";
-import { ISectionRenderer, pageTokenFromSectionRenderer, Scraper } from "./scraper/polymer";
+import {
+    ISectionRenderer,
+    pageTokenFromSectionRenderer,
+    textFromObject,
+    Scraper,
+} from "./scraper/polymer";
 
 const HISTORY_URL = "https://www.youtube.com/feed/history";
 
@@ -18,13 +23,13 @@ const HISTORY_URL = "https://www.youtube.com/feed/history";
 //
 
 function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
-    const items = sectionRenderer.contents.map(({videoRenderer: renderer}) => ({
-        desc: renderer.descriptionSnippet
-            ? renderer.descriptionSnippet.simpleText
-            : "",
-        id: renderer.videoId,
-        title: renderer.title.simpleText,
-    }));
+    const items = sectionRenderer.contents.map(({videoRenderer: renderer}) => {
+        return {
+            desc: textFromObject(renderer.descriptionSnippet),
+            id: renderer.videoId,
+            title: textFromObject(renderer.title),
+        }
+    });
 
     const nextPageToken = pageTokenFromSectionRenderer(sectionRenderer);
 
@@ -41,6 +46,8 @@ class PolymerWatchHistory extends PolymerScrapingIterableEntity<IVideo> {
 
 //
 // Angular implementation
+// NOTE: it seems google is now finally going to kill this version, and is
+// starting to ignore the disable_polymer query param...
 //
 
 function angularScrapeWatchHistory(
@@ -91,7 +98,7 @@ export class WatchHistory extends DelegateIterable<IVideo, WatchHistory> {
         super(
             isIterableEntity(credsOrBase)
                 ? credsOrBase
-                : new AngularWatchHistory(credsOrBase as ICreds),
+                : new PolymerWatchHistory(credsOrBase as ICreds),
             WatchHistory,
         );
     }

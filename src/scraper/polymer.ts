@@ -1,3 +1,6 @@
+import _debug from "debug";
+const debug = _debug("youtubish:polymer");
+
 import request from "request-promise-native";
 
 import { asCachedCredentialsManager, ICredentialsManager, ICreds } from "../creds";
@@ -28,7 +31,8 @@ function tokenExtractor(tokenName: string) {
     return (html: string, required?: boolean) => {
         const result = html.match(regex);
         if (!result) {
-            throw new Error("No match; format must have changed?");
+            fs.writeFileSync("out.html", html);
+            throw new Error(`No match for token "${tokenName}"; format must have changed?`);
         }
 
         const [, token] = result;
@@ -67,6 +71,29 @@ function findTabSectionRenderer(json: any): ISectionRenderer {
 
     return tab.tabRenderer.content.sectionListRenderer
         .contents[0].itemSectionRenderer;
+}
+
+/**
+ * Given a title/description object, attempt to extract its text content,
+ * handling differences in APIs/versions
+ */
+export function textFromObject(obj: any) {
+    if (!obj) return "";
+    if (typeof obj !== "object") {
+        debug("unexpected text object format:", obj);
+        return "";
+    }
+
+    if (obj.runs) {
+        return obj.runs.map((run: any) => run.text).join(" ");
+    }
+
+    if (obj.simpleText) {
+        return obj.simpleText as string;
+    }
+
+    debug("unexpected text object type:", obj);
+    return "";
 }
 
 export class Scraper {
@@ -137,7 +164,6 @@ export class Scraper {
     private async scrapeJson(url: string) {
         const headers: any = {
             "Accept": "*/*",
-            "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
             "Host": "www.youtube.com",
             "User-Agent": USER_AGENT,
