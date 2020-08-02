@@ -11,7 +11,6 @@
     "build": "tsc -p .",
     "check": "npm run lint && npm run build && npm run test",
     "lint": "tslint -p .",
-    "prepare": "npm run build",
     "prepublishOnly": "npm run check",
     "test": "mocha -r ts-node/register test/**/*-test.ts"
   },
@@ -27,17 +26,19 @@
   "license": "ISC",
   "dependencies": {
     "cheerio": "^1.0.0-rc.3",
+    "debug": "^4.1.1",
     "request": "^2.88.2",
-    "request-promise-native": "^1.0.8"
+    "request-promise-native": "^1.0.9"
   },
   "devDependencies": {
-    "@types/chai": "^4.2.9",
-    "@types/cheerio": "^0.22.16",
-    "@types/mocha": "^7.0.1",
-    "@types/node": "^11.13.7",
+    "@types/chai": "^4.2.12",
+    "@types/cheerio": "^0.22.21",
+    "@types/debug": "^4.1.5",
+    "@types/mocha": "^8.0.1",
+    "@types/node": "^14.0.27",
     "@types/request-promise-native": "^1.0.17",
     "chai": "^4.2.0",
-    "mocha": "^7.1.0",
-    "typescript": "^3.4.5"
+    "mocha": "^8.1.0",
+    "typescript": "^3.9.7"
   }
 }
