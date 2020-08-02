@@ -28,7 +28,8 @@ function tokenExtractor(tokenName: string) {
     return (html: string, required?: boolean) => {
         const result = html.match(regex);
         if (!result) {
-            throw new Error("No match; format must have changed?");
+            fs.writeFileSync("out.html", html);
+            throw new Error(`No match for token "${tokenName}"; format must have changed?`);
         }
 
         const [, token] = result;
@@ -137,7 +138,6 @@ export class Scraper {
     private async scrapeJson(url: string) {
         const headers: any = {
             "Accept": "*/*",
-            "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
             "Host": "www.youtube.com",
             "User-Agent": USER_AGENT,
