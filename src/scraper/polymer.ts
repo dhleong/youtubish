@@ -76,19 +76,27 @@ export function pageTokenFromSectionRenderer(renderer: ISectionRenderer) {
             continuation: continuation.nextContinuationData.continuation,
         };
     }
+
+    if (typeof renderer.continuations === 'object' && (renderer.continuations as any).continuationEndpoint) {
+        const endpoint = (renderer.continuations as NewContinuationsObject).continuationEndpoint;
+        return {
+            clickTracking: endpoint.clickTrackingParams,
+            continuation: endpoint.continuationCommand.token,
+        };
+    }
 }
 
-function findTabSectionRenderer(json: any): ISectionRenderer {
-    const tabs = json.contents.twoColumnBrowseResultsRenderer.tabs;
-    const tab = tabs.find((t: any) => t.tabRenderer.selected);
-
-    const contents = tab.tabRenderer.content.sectionListRenderer.contents;
+function extractSectionRenderer(contents: any[]) {
     const result: ISectionRenderer = contents[0].itemSectionRenderer;
 
     for (let i=1; i < contents.length; ++i) {
         const extra = contents[i];
         if (!extra) continue;
-        if (!extra.itemSectionRenderer) continue;
+        if (!extra.itemSectionRenderer) {
+            result.continuations = result.continuations
+                ?? extra.continuationItemRenderer;
+            continue;
+        }
 
         result.contents = result.contents.concat(extra.itemSectionRenderer.contents);
         result.continuations = extra.itemSectionRenderer.continuation
@@ -96,6 +104,14 @@ function findTabSectionRenderer(json: any): ISectionRenderer {
     }
 
     return result;
+}
+
+function findTabSectionRenderer(json: any): ISectionRenderer {
+    const tabs = json.contents.twoColumnBrowseResultsRenderer.tabs;
+    const tab = tabs.find((t: any) => t.tabRenderer.selected);
+
+    const contents = tab.tabRenderer.content.sectionListRenderer.contents;
+    return extractSectionRenderer(contents);
 }
 
 /**
@@ -169,14 +185,26 @@ export class Scraper {
             },
         });
 
-        const continuationKey = Object.keys(json.continuationContents)
-            .find(it => it.endsWith("Continuation"));
+        if (json.continuationContents) {
+            // old version:
+            const continuationKey = Object.keys(json.continuationContents)
+                .find(it => it.endsWith("Continuation"));
 
-        if (continuationKey) {
-            return json.continuationContents[continuationKey];
+            if (continuationKey) {
+                return json.continuationContents[continuationKey];
+            }
+
+            return json.continuationContents.itemSectionContinuation;
         }
 
-        return json.continuationContents.itemSectionContinuation;
+        if (Array.isArray(json.onResponseReceivedActions)) {
+            const continuation = json.onResponseReceivedActions.find(
+                (it: any) => it.appendContinuationItemsAction);
+            const action = continuation.appendContinuationItemsAction;
+            return extractSectionRenderer(action.continuationItems);
+        }
+
+        throw new Error("Unexpected continuation format");
     }
 
     private async fetch(url: string) {

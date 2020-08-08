@@ -32,7 +32,6 @@ function scrapeWatchHistory(sectionRenderer: ISectionRenderer) {
     });
 
     const nextPageToken = pageTokenFromSectionRenderer(sectionRenderer);
-    console.log("results=", items.length, nextPageToken);
 
     return { items, nextPageToken };
 }

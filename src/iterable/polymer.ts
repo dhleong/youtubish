@@ -33,3 +33,4 @@ export abstract class PolymerScrapingIterableEntity<T> extends IterableEntity<T,
     }
 
 }
+
