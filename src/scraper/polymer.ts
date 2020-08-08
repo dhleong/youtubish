@@ -44,19 +44,32 @@ function tokenExtractor(tokenName: string) {
 const extractIdentityToken = tokenExtractor("ID_TOKEN");
 const extractXsrfToken = tokenExtractor("XSRF_TOKEN");
 
+type OldContinuationsList = {
+    nextContinuationData: {
+        continuation: string,
+        clickTrackingParams: string,
+    },
+}[];
+
+interface NewContinuationsObject {
+    continuationEndpoint: {
+        clickTrackingParams: string;
+        continuationCommand: {
+            request: string;
+            token: string;
+        };
+    };
+}
+
 export interface ISectionRenderer {
     contents: any[];
 
-    continuations?: [{
-        nextContinuationData: {
-            continuation: string,
-            clickTrackingParams: string,
-        },
-    }];
+    continuations?: OldContinuationsList | NewContinuationsObject;
 }
 
 export function pageTokenFromSectionRenderer(renderer: ISectionRenderer) {
-    if (renderer.continuations && renderer.continuations.length) {
+    // old style:
+    if (Array.isArray(renderer.continuations) && renderer.continuations.length) {
         const continuation = renderer.continuations[0];
         return {
             clickTracking: continuation.nextContinuationData.clickTrackingParams,
@@ -69,8 +82,20 @@ function findTabSectionRenderer(json: any): ISectionRenderer {
     const tabs = json.contents.twoColumnBrowseResultsRenderer.tabs;
     const tab = tabs.find((t: any) => t.tabRenderer.selected);
 
-    return tab.tabRenderer.content.sectionListRenderer
-        .contents[0].itemSectionRenderer;
+    const contents = tab.tabRenderer.content.sectionListRenderer.contents;
+    const result: ISectionRenderer = contents[0].itemSectionRenderer;
+
+    for (let i=1; i < contents.length; ++i) {
+        const extra = contents[i];
+        if (!extra) continue;
+        if (!extra.itemSectionRenderer) continue;
+
+        result.contents = result.contents.concat(extra.itemSectionRenderer.contents);
+        result.continuations = extra.itemSectionRenderer.continuation
+            ?? result.continuations;
+    }
+
+    return result;
 }
 
 /**
