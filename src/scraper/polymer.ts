@@ -1,7 +1,8 @@
 import _debug from "debug";
 const debug = _debug("youtubish:polymer");
 
-import request from "request-promise-native";
+import FormData from "form-data";
+import axios from "../axios";
 
 import { asCachedCredentialsManager, ICredentialsManager, ICreds } from "../creds";
 import { IPolymerScrapingContinuation } from "../iterable/polymer";
@@ -13,6 +14,7 @@ const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/
 const CONTINUATION_URL = "https://www.youtube.com/browse_ajax";
 
 import fs from "fs";
+import { formDataFrom } from "../util";
 
 function extractJSON(html: string) {
     const result = html.match(/window\["ytInitialData"\] = (\{.+\});$/m);
@@ -227,20 +229,22 @@ export class Scraper {
             headers.Cookie = cookies;
         }
 
-        const html = await request.get({
+        const response = await axios.get(url, {
             headers,
-            url,
         });
+        const html = response.data;
 
         this.identityToken = extractIdentityToken(html) || this.identityToken;
         this.xsrfToken = extractXsrfToken(html) || this.xsrfToken;
         return extractJSON(html);
     }
 
-    private async loadJson(url: string, opts?: {qs?: {}, form?: {}}) {
+    private async loadJson(url: string, opts?: {qs?: {}, form?: Record<string, any>}) {
         const { form, qs } = opts || { qs: undefined, form: undefined };
-        const fullJson = await request({
-            form,
+
+        const data = formDataFrom(form);
+        const { data: fullJson } = await axios({
+            data,
             headers: {
                 "Cookie": await this.getCookies(),
                 "User-Agent": USER_AGENT,
@@ -248,9 +252,8 @@ export class Scraper {
                 "X-Youtube-Client-Version": "2.20190321",
                 "X-Youtube-Identity-Token": this.identityToken,
             },
-            json: true,
             method: form === undefined ? "GET" : "POST",
-            qs,
+            params: qs,
             url,
         });
 

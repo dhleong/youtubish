@@ -1,4 +1,4 @@
-import request from "request";
+import { CookieJar } from "tough-cookie";
 
 import { ICredentialsManager } from "./creds";
 
@@ -6,7 +6,7 @@ const YOUTUBE_HOST = "https://www.youtube.com";
 
 export class CredsCookieJarManager {
 
-    private cookieJar: request.CookieJar | undefined;
+    private cookieJar: CookieJar | undefined;
 
     constructor(
         private readonly creds: ICredentialsManager,
@@ -19,13 +19,10 @@ export class CredsCookieJarManager {
         const credentials = await this.creds.get();
         if (!credentials) return;
 
-        const jar = request.jar();
+        const jar = new CookieJar();
 
         for (const cookieStr of credentials.cookies.split(/;[ ]*/)) {
-            const cookie = request.cookie(cookieStr);
-            if (cookie) {
-                jar.setCookie(cookie, YOUTUBE_HOST);
-            }
+            jar.setCookie(cookieStr, YOUTUBE_HOST);
         }
 
         return jar;
@@ -39,7 +36,7 @@ export class CredsCookieJarManager {
         const jar = this.cookieJar;
         if (!jar) return;
 
-        const newCookies = jar.getCookieString(YOUTUBE_HOST);
+        const newCookies = await jar.getCookieString(YOUTUBE_HOST);
         if (newCookies) {
             this.creds.set({ cookies: newCookies });
         }

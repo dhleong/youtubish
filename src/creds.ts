@@ -7,8 +7,12 @@ export interface ICredentials {
     cookies: string;
 }
 
+export interface IRefreshToken {
+    refreshToken: string;
+}
+
 export function isCredentials(creds: ICreds): creds is ICredentials {
-    return (creds as any).cookies;
+    return (creds as any).cookies || (creds as any).refreshToken;
 }
 
 export function isCredentialsPromise(creds: ICreds): creds is Promise<ICredentials> {
@@ -24,6 +28,12 @@ export interface ICredentialsManager {
 export class Credentials implements ICredentials {
     constructor(
         public readonly cookies: string,
+    ) { }
+}
+
+export class RefreshToken implements IRefreshToken {
+    constructor(
+        public readonly refreshToken: string,
     ) { }
 }
 
