@@ -88,6 +88,11 @@ export class CredentialsBuilder {
     }
 }
 
+export interface IOauthCredentials {
+    refreshToken: string;
+    access?: IAccessInfo;
+}
+
 export class OauthCredentialsManager implements ICredentialsManager {
     private readonly refreshToken: string;
     private access: IAccessInfo | undefined;
@@ -95,10 +100,10 @@ export class OauthCredentialsManager implements ICredentialsManager {
     private runningPromise: Promise<ICredentials> | undefined;
 
     constructor(
-        credentials: {
-            refreshToken: string,
-            access?: IAccessInfo,
-        },
+        credentials: IOauthCredentials,
+        private readonly options: {
+            persistCredentials?: (creds: IOauthCredentials) => Promise<void>,
+        } = {},
     ) {
         this.refreshToken = credentials.refreshToken;
         this.access = credentials.access;
@@ -134,6 +139,14 @@ export class OauthCredentialsManager implements ICredentialsManager {
             );
             access = info;
             this.access = info;
+
+            const persist = this.options?.persistCredentials;
+            if (persist) {
+                await persist({
+                    refreshToken: this.refreshToken,
+                    access,
+                });
+            }
         } else {
             // valid access token!
             access = this.access;
