@@ -25,7 +25,6 @@ const OAUTH2_SCOPE = [
 ];
 const OAUTH2_DELEGATED = "183697946088-m3jnlsqshjhh5lbvg05k46q1k4qqtrgn.apps.googleusercontent.com";
 
-// OAUTH2_QUERY = ("&#{k}=#{encodeURIComponent(v)}" for k, v of OAUTH2_PARAMS).join('').replace('__my_sep__', '+')
 const OAUTH2_LOGIN_URL = "https://accounts.google.com/o/oauth2/programmatic_auth";
 const OAUTH2_TOKEN_REQUEST_URL = "https://accounts.google.com/o/oauth2/token";
 
