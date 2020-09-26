@@ -1,5 +1,3 @@
-import request from "request-promise-native";
-
 import { ICreds } from "./creds";
 import {
     DelegateIterable,

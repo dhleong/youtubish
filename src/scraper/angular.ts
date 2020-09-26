@@ -1,5 +1,5 @@
 import cheerio from "cheerio";
-import request from "request-promise-native";
+import axios from "../axios";
 
 import { CredsCookieJarManager } from "../cookie-jar";
 import { asCachedCredentialsManager, ICredentialsManager, ICreds } from "../creds";
@@ -33,7 +33,7 @@ export class AngularScraper {
         contentId?: string,
     ) {
         const raw = await this.fetch(url);
-        const json = JSON.parse(raw);
+        const json = typeof raw === "string" ? JSON.parse(raw) : raw;
         const { content_html, load_more_widget_html } = json;
         const html = `
             <div>
@@ -48,21 +48,21 @@ export class AngularScraper {
     }
 
     private async fetch(url: string) {
-        const html = await request.get({
+        const { data: html } = await axios.get(url, {
             headers: {
                 "User-Agent": USER_AGENT,
             },
             jar: await this.cookies.getCookies(),
-            url,
 
-            qs: {
+            params: {
                 disable_polymer: "true",
             },
+            responseType: "text",
         });
 
         await this.cookies.updateCookies();
 
-        return html;
+        return html as string;
     }
 
 }
