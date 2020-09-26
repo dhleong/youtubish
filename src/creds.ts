@@ -27,9 +27,6 @@ export interface ICredentialsManager {
     set(credentials: ICredentials): Promise<void>;
 }
 
-/**
- * NOTE: this name is legacy and can probably be considered deprecated
- */
 export class Credentials implements ICredentials {
     constructor(
         public readonly cookies: string,
