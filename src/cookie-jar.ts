@@ -23,10 +23,6 @@ export class CredsCookieJarManager {
 
         for (const cookieStr of credentials.cookies.split(/;[ ]*/)) {
             jar.setCookie(cookieStr, YOUTUBE_HOST);
-            // const cookie = request.cookie(cookieStr);
-            // if (cookie) {
-            //     jar.setCookie(cookie, YOUTUBE_HOST);
-            // }
         }
 
         return jar;
