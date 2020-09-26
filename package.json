@@ -30,8 +30,6 @@
     "cheerio": "^1.0.0-rc.3",
     "debug": "^4.1.1",
     "form-data": "^3.0.0",
-    "puppeteer-extra": "^3.1.15",
-    "puppeteer-extra-plugin-stealth": "^2.6.1",
     "tough-cookie": "^4.0.0"
   },
   "devDependencies": {
@@ -48,6 +46,8 @@
     "typescript": "^3.9.7"
   },
   "optionalDependencies": {
-    "puppeteer": "^5.3.1"
+    "puppeteer": "^5.3.1",
+    "puppeteer-extra": "^3.1.15",
+    "puppeteer-extra-plugin-stealth": "^2.6.1"
   }
 }
