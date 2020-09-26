@@ -1,18 +1,20 @@
 import fs from "fs";
 import util from "util";
 
+import {
+    exchangeRefreshTokenForAccessToken,
+    IAccessInfo,
+    createCookiesForAccessToken,
+} from "./auth";
+
 const readFileAsync = util.promisify(fs.readFile);
 
 export interface ICredentials {
     cookies: string;
 }
 
-export interface IRefreshToken {
-    refreshToken: string;
-}
-
 export function isCredentials(creds: ICreds): creds is ICredentials {
-    return (creds as any).cookies || (creds as any).refreshToken;
+    return (creds as any).cookies;
 }
 
 export function isCredentialsPromise(creds: ICreds): creds is Promise<ICredentials> {
@@ -25,15 +27,12 @@ export interface ICredentialsManager {
     set(credentials: ICredentials): Promise<void>;
 }
 
+/**
+ * NOTE: this name is legacy and can probably be considered deprecated
+ */
 export class Credentials implements ICredentials {
     constructor(
         public readonly cookies: string,
-    ) { }
-}
-
-export class RefreshToken implements IRefreshToken {
-    constructor(
-        public readonly refreshToken: string,
     ) { }
 }
 
@@ -89,6 +88,63 @@ export class CredentialsBuilder {
     }
 }
 
+export class OauthCredentialsManager implements ICredentialsManager {
+    private readonly refreshToken: string;
+    private access: IAccessInfo | undefined;
+
+    private runningPromise: Promise<ICredentials> | undefined;
+
+    constructor(
+        credentials: {
+            refreshToken: string,
+            access?: IAccessInfo,
+        },
+    ) {
+        this.refreshToken = credentials.refreshToken;
+        this.access = credentials.access;
+    }
+
+    public async get() {
+        // ensure we only perform this flow *once* even if we
+        // get multiple simultaneous requests
+
+        const running = this.runningPromise;
+        if (running) return running;
+
+        const p = this.loadCookies();
+        this.runningPromise = p;
+        const result = await p;
+        this.runningPromise = undefined;
+
+        return result;
+    }
+
+    public async set(credentials: ICredentials) {
+        // nop
+    }
+
+    private async loadCookies() {
+        const now = Date.now();
+
+        let access: IAccessInfo;
+        if (!this.access || now >= this.access.expiresAt) {
+            // get a new access token
+            const info = await exchangeRefreshTokenForAccessToken(
+                this.refreshToken,
+            );
+            access = info;
+            this.access = info;
+        } else {
+            // valid access token!
+            access = this.access;
+        }
+
+        const cookies = await createCookiesForAccessToken(this.access);
+        return { cookies };
+    }
+
+}
+
 class StaticCredentialsManager implements ICredentialsManager {
     constructor(
         private readonly creds: ICredentials | Promise<ICredentials>,
@@ -116,16 +172,25 @@ class NopCredentialsManager implements ICredentialsManager {
 class CachingCredentialsManager implements ICredentialsManager {
 
     private cached: ICredentials | undefined;
+    private expiration = 0;
 
     constructor(
         private readonly delegate: ICredentialsManager,
     ) {}
 
     public async get() {
-        if (this.cached) return this.cached;
+        const now = Date.now();
+        if (this.cached && now < this.expiration) {
+            return this.cached;
+        }
 
         const creds = await this.delegate.get();
         this.cached = creds;
+
+        // cookies are typically valid for a week or so, but let's
+        // refresh more often just in case
+        this.expiration = now + 24 * 3600 * 1000;
+
         return creds;
     }
 

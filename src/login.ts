@@ -5,7 +5,7 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { Cookie } from "tough-cookie";
 
-import { generateAuthCodeUrl } from "./auth";
+import { generateAuthCodeUrl, exchangeAuthCode } from "./auth";
 
 /*
  * NOTE: This process is largely based on the same for yakyak:
@@ -66,4 +66,9 @@ export async function requestAuthCode() {
     } finally {
         await browser.close();
     }
+}
+
+export async function requestCreds() {
+    const authCode = await requestAuthCode();
+    return exchangeAuthCode(authCode);
 }
