@@ -51,6 +51,8 @@ export class AngularScraper {
         const { data: html } = await axios.get(url, {
             headers: {
                 "User-Agent": USER_AGENT,
+                "x-youtube-client-name": "1",
+                "x-youtube-client-version": "1.20200825.01.00",
             },
             jar: await this.cookies.getCookies(),
 
