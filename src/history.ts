@@ -49,7 +49,7 @@ class PolymerWatchHistory extends PolymerScrapingIterableEntity<IVideo> {
 //
 
 function angularScrapeWatchHistory(
-    $: CheerioStatic,
+    $: cheerio.Root,
 ) {
     if ($(".signin-container").length) {
         throw new Error("Signed out");

@@ -16,7 +16,7 @@ export abstract class AngularScrapingIterableEntity<T> extends IterableEntity<T,
     constructor(
         creds: ICreds | undefined,
         private url: string,
-        private scrapePage: ($: CheerioStatic) => IPage<T, IAngularScrapingContinuation>,
+        private scrapePage: ($: cheerio.Root) => IPage<T, IAngularScrapingContinuation>,
     ) {
         super();
         this.scraper = new AngularScraper(creds);

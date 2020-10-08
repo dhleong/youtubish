@@ -57,7 +57,7 @@ class PolymerYoutubePlaylist extends PolymerScrapingIterableEntity<IVideo> {
 //
 
 function angularScrapePlaylist(
-    $: CheerioStatic,
+    $: cheerio.Root,
 ) {
     const items: IVideo[] = $(".pl-video").map((_, element) => {
         const el = $(element);
