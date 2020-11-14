@@ -1,3 +1,6 @@
+import _debug from "debug";
+const debug = _debug("youtubish:playlist");
+
 import { ICreds } from "./creds";
 import { WatchHistory } from "./history";
 import {
@@ -29,15 +32,18 @@ function scrapePlaylist(sectionRenderer: ISectionRenderer) {
         sectionRenderer = sectionRenderer.contents[0].playlistVideoListRenderer;
     }
 
-    const items = sectionRenderer.contents.map(({playlistVideoRenderer: renderer}) => {
-        return {
-            desc: textFromObject(renderer.descriptionSnippet),
-            id: renderer.videoId,
-            title: textFromObject(renderer.title),
-        }
-    });
+    const items = sectionRenderer.contents
+        .filter(item => item.playlistVideoRenderer)
+        .map(({playlistVideoRenderer: renderer}) => {
+            return {
+                desc: textFromObject(renderer.descriptionSnippet),
+                id: renderer.videoId,
+                title: textFromObject(renderer.title),
+            }
+        });
     const nextPageToken = pageTokenFromSectionRenderer(sectionRenderer);
-
+    debug("found items: ", items.length);
+    debug("nextPageToken: ", nextPageToken);
     return { items, nextPageToken };
 }
 
@@ -105,10 +111,10 @@ export class YoutubePlaylist extends DelegateIterable<IVideo, YoutubePlaylist> {
     ) {
         super(
             typeof credsOrBaseOrId === "string"
-                ? new AngularYoutubePlaylist(undefined, credsOrBaseOrId)
+                ? new PolymerYoutubePlaylist(undefined, credsOrBaseOrId)
                 : isIterableEntity(credsOrBaseOrId)
                     ? credsOrBaseOrId
-                    : new AngularYoutubePlaylist(credsOrBaseOrId as ICreds, id!),
+                    : new PolymerYoutubePlaylist(credsOrBaseOrId as ICreds, id!),
             YoutubePlaylist,
         );
     }

@@ -69,8 +69,20 @@ export interface ISectionRenderer {
     continuations?: OldContinuationsList | NewContinuationsObject;
 }
 
+function pageTokenFromContinuationEndpoint(
+    container: any,
+) {
+    if (!(container as any).continuationEndpoint) return;
+
+    const endpoint = (container as NewContinuationsObject).continuationEndpoint;
+    return {
+        clickTracking: endpoint.clickTrackingParams,
+        continuation: endpoint.continuationCommand.token,
+    };
+}
+
 export function pageTokenFromSectionRenderer(renderer: ISectionRenderer) {
-    // old style:
+    // v1 (maybe very old?)
     if (Array.isArray(renderer.continuations) && renderer.continuations.length) {
         const continuation = renderer.continuations[0];
         return {
@@ -79,17 +91,31 @@ export function pageTokenFromSectionRenderer(renderer: ISectionRenderer) {
         };
     }
 
-    if (typeof renderer.continuations === 'object' && (renderer.continuations as any).continuationEndpoint) {
-        const endpoint = (renderer.continuations as NewContinuationsObject).continuationEndpoint;
-        return {
-            clickTracking: endpoint.clickTrackingParams,
-            continuation: endpoint.continuationCommand.token,
-        };
+    // v2
+    if (typeof renderer.continuations === 'object') {
+        const token = pageTokenFromContinuationEndpoint(
+            renderer.continuations,
+        )
+        if (token) return token;
+    }
+
+    // current
+    const last = renderer.contents.length
+        ? renderer.contents[renderer.contents.length - 1]
+        : null;
+    if (last && last.continuationItemRenderer) {
+        debug("last", last);
+
+        const token = pageTokenFromContinuationEndpoint(
+            last.continuationItemRenderer,
+        )
+        if (token) return token;
     }
 }
 
 function extractSectionRenderer(contents: any[]) {
     const result: ISectionRenderer = contents[0].itemSectionRenderer;
+    if (!result) return;
 
     for (let i=1; i < contents.length; ++i) {
         const extra = contents[i];
@@ -113,7 +139,10 @@ function findTabSectionRenderer(json: any): ISectionRenderer {
     const tab = tabs.find((t: any) => t.tabRenderer.selected);
 
     const contents = tab.tabRenderer.content.sectionListRenderer.contents;
-    return extractSectionRenderer(contents);
+    const section = extractSectionRenderer(contents);
+    if (section) return section;
+
+    throw new Error("Couldn't find section renderer");
 }
 
 /**
@@ -203,7 +232,13 @@ export class Scraper {
             const continuation = json.onResponseReceivedActions.find(
                 (it: any) => it.appendContinuationItemsAction);
             const action = continuation.appendContinuationItemsAction;
-            return extractSectionRenderer(action.continuationItems);
+            const renderer = extractSectionRenderer(action.continuationItems);
+            if (renderer) return renderer;
+            if (Array.isArray(action.continuationItems)) {
+                return {
+                    contents: action.continuationItems,
+                };
+            }
         }
 
         throw new Error("Unexpected continuation format");
