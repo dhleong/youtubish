@@ -1,6 +1,7 @@
 import _debug from "debug";
 const debug = _debug("youtubish:polymer");
 
+import cheerio from "cheerio";
 import FormData from "form-data";
 import axios from "../axios";
 
@@ -16,16 +17,44 @@ const CONTINUATION_URL = "https://www.youtube.com/browse_ajax";
 import fs from "fs";
 import { formDataFrom } from "../util";
 
+function extractJSONFromScripts(html: string) {
+    const $ = cheerio.load(html);
+
+    let matchedJson: any | undefined;
+    $("script").each((_, el) => {
+        const contents = $(el).html();
+        if (!contents) return;
+
+        const match = contents.match(/^var ytInitialData = (\{.+\});$/m);
+        if (match) {
+            const [, rawJson] = match;
+            matchedJson = JSON.parse(rawJson);
+            return false;
+        }
+    })
+    return matchedJson;
+}
+
 function extractJSON(html: string) {
+    // take 1: old style
     const result = html.match(/window\["ytInitialData"\] = (\{.+\});$/m);
-    if (!result) {
-        // save so we can test
-        fs.writeFileSync("out.html", html);
-        throw new Error("No match; format must have changed?");
+    if (result) {
+        debug("found json on window:", result);
+        const [, rawJson] = result;
+        return JSON.parse(rawJson);
     }
 
-    const [, rawJson] = result;
-    return JSON.parse(rawJson);
+    // take 2: new style
+    debug("couldn't find window data assignment; checking script tags");
+    const fromScripts = extractJSONFromScripts(html);
+    if (fromScripts) {
+        debug("found json from scripts:", fromScripts);
+        return fromScripts;
+    }
+
+    // save so we can test
+    fs.writeFileSync("out.html", html);
+    throw new Error("No match; format must have changed?");
 }
 
 function tokenExtractor(tokenName: string) {
@@ -39,7 +68,10 @@ function tokenExtractor(tokenName: string) {
 
         const [, token] = result;
         if (token === "null") return null;
-        return token;
+
+        const value = token.replace(/\\u003d/g, "=");
+        debug("extracted", tokenName, " <- ", value);
+        return value;
     };
 }
 
@@ -251,7 +283,8 @@ export class Scraper {
         return this.scrapeJson(url);
     }
 
-    private async scrapeJson(url: string) {
+    private async scrapeJson(url: string, opts?: {qs?: {}, form?: Record<string, any>}) {
+        const { form, qs } = opts || { qs: undefined, form: undefined };
         const headers: any = {
             "Accept": "*/*",
             "Connection": "keep-alive",
@@ -264,19 +297,31 @@ export class Scraper {
             headers.Cookie = cookies;
         }
 
-        const response = await axios.get(url, {
+        debug("loading:", url, qs, form);
+        const data = formDataFrom(form);
+        const response = await axios({
+            data,
             headers,
+            method: form === undefined ? "GET" : "POST",
+            params: qs,
+            url,
         });
         const html = response.data;
 
-        this.identityToken = extractIdentityToken(html) || this.identityToken;
-        this.xsrfToken = extractXsrfToken(html) || this.xsrfToken;
-        return extractJSON(html);
+        if (typeof html === "string") {
+            this.identityToken = extractIdentityToken(html) || this.identityToken;
+            this.xsrfToken = extractXsrfToken(html) || this.xsrfToken;
+            return extractJSON(html);
+        } else {
+            debug("result: ", html);
+            return html;
+        }
     }
 
     private async loadJson(url: string, opts?: {qs?: {}, form?: Record<string, any>}) {
         const { form, qs } = opts || { qs: undefined, form: undefined };
 
+        debug("loadJson:", url, opts?.qs, opts?.form);
         const data = formDataFrom(form);
         const { data: fullJson } = await axios({
             data,
@@ -293,7 +338,8 @@ export class Scraper {
         });
 
         if (fullJson.reload === "now") {
-            return this.scrapeJson(url);
+            debug("reloading:", url, "from: ", fullJson);
+            return this.scrapeJson(url, opts);
         }
 
         return fullJson[1].response;
