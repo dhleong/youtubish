@@ -223,7 +223,7 @@ implements IIterableEntity<T, IterableEntity<T, TPageToken>> {
      * This should return `{ items, nextPageToken }` where
      * `nextPageToken` is a non-empty string if there are more results
      */
-    protected abstract async _fetchNextPage(
+    protected abstract _fetchNextPage(
         token: TPageToken | undefined,
     ): Promise<IPage<T, TPageToken>>;
 
