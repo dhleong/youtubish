@@ -121,7 +121,7 @@ export class OauthCredentialsManager implements ICredentialsManager {
         return result;
     }
 
-    public async set(credentials: ICredentials) {
+    public async set(_credentials: ICredentials) {
         // nop
     }
 
@@ -164,7 +164,7 @@ class StaticCredentialsManager implements ICredentialsManager {
         return this.creds;
     }
 
-    public async set(creds: ICredentials) {
+    public async set(_creds: ICredentials) {
         // nop
     }
 }
@@ -174,7 +174,7 @@ class NopCredentialsManager implements ICredentialsManager {
         return undefined;
     }
 
-    public async set(creds: ICredentials) {
+    public async set(_creds: ICredentials) {
         // nop
     }
 }

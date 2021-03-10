@@ -2,8 +2,11 @@ import _debug from "debug";
 const debug = _debug("youtubish:polymer");
 
 import cheerio from "cheerio";
-import FormData from "form-data";
+import crypto from "crypto";
 import axios from "../axios";
+
+import fs from "fs";
+import { formDataFrom } from "../util";
 
 import { asCachedCredentialsManager, ICredentialsManager, ICreds } from "../creds";
 import { IPolymerScrapingContinuation } from "../iterable/polymer";
@@ -12,10 +15,23 @@ import { IPolymerScrapingContinuation } from "../iterable/polymer";
 // tslint:disable-next-line max-line-length
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36";
 
-const CONTINUATION_URL = "https://www.youtube.com/browse_ajax";
+const URL_BASE = "https://www.youtube.com";
+const CONTINUATION_URL = URL_BASE + "/youtubei/v1/browse";
+const YOUTUBEI_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
 
-import fs from "fs";
-import { formDataFrom } from "../util";
+const CLIENT_INFO = {
+    // the app sends a bunch more, but this seems sufficient:
+    userAgent: USER_AGENT,
+    clientName: "WEB",
+    clientVersion: "2.20210308.08.00",
+    platform: "DESKTOP",
+    clientFormFactor: "UNKNOWN_FORM_FACTOR",
+};
+
+interface InnertubeInfo {
+    apiKey?: string,
+    clientVersion?: string,
+}
 
 function extractJSONFromScripts(html: string) {
     const $ = cheerio.load(html);
@@ -57,9 +73,43 @@ function extractJSON(html: string) {
     throw new Error("No match; format must have changed?");
 }
 
+function extractInnertubeInfo(html: string) {
+    const info = {
+        apiKey: extractInnertubeApiKey(html),
+        clientVersion: extractInnertubeClientVersion(html),
+    };
+    if (info.apiKey || info.clientVersion) {
+        debug("extracted innertube info:", info);
+        return info;
+    }
+}
+
+function extractInnertubeApiKey(html: string) {
+    const lowerApiMatch = html.match(/"innertubeApiKey":"([^"]+)"/);
+    if (lowerApiMatch && lowerApiMatch.length >= 2) {
+        return lowerApiMatch[1];
+    }
+    const upperApiMatch = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
+    if (upperApiMatch && upperApiMatch.length >= 2) {
+        return upperApiMatch[1];
+    }
+}
+
+function extractInnertubeClientVersion(html: string) {
+    const lowerMatch = html.match(/"innertubeContextClientVersion":"([^"]+)"/);
+    if (lowerMatch && lowerMatch.length >= 2) {
+        return lowerMatch[1];
+    }
+    const upperMatch = html.match(/"INNERTUBE_CLIENT_VERSION":"([^"]+)"/);
+    if (upperMatch && upperMatch.length >= 2) {
+        return upperMatch[1];
+    }
+}
+
+
 function tokenExtractor(tokenName: string) {
     const regex = new RegExp(`['"]${tokenName}['"][,: ]+(?:null|"([^"]+)")`);
-    return (html: string, required?: boolean) => {
+    return (html: string, _required?: boolean) => {
         const result = html.match(regex);
         if (!result) {
             fs.writeFileSync("out.html", html);
@@ -88,6 +138,11 @@ type OldContinuationsList = {
 interface NewContinuationsObject {
     continuationEndpoint: {
         clickTrackingParams: string;
+        commandMetadata?: {
+            webCommandMetadata?: {
+                apiUrl: string,
+            }
+        };
         continuationCommand: {
             request: string;
             token: string;
@@ -110,6 +165,7 @@ function pageTokenFromContinuationEndpoint(
     return {
         clickTracking: endpoint.clickTrackingParams,
         continuation: endpoint.continuationCommand.token,
+        url: endpoint.commandMetadata?.webCommandMetadata?.apiUrl,
     };
 }
 
@@ -202,8 +258,9 @@ export function textFromObject(obj: any) {
 
 export class Scraper {
 
-    private identityToken: string | undefined;
-    private xsrfToken: string | undefined;
+    private identityToken?: string;
+    private xsrfToken?: string;
+    private innertubeInfo?: InnertubeInfo;
 
     private creds: ICredentialsManager;
 
@@ -237,16 +294,9 @@ export class Scraper {
     }
 
     public async continueTabSectionRenderer(token: IPolymerScrapingContinuation) {
-        const json = await this.loadJson(CONTINUATION_URL, {
-            form: {
-                session_token: this.xsrfToken,
-            },
-            qs: {
-                continuation: token.continuation,
-                ctoken: token.continuation,
-                itct: token.clickTracking,
-            },
-        });
+        const json = token.url
+            ? await this.loadInnertubeJsonContinuation(token)
+            : await this.loadLegacyJsonContinuation(token);
 
         if (json.continuationContents) {
             // old version:
@@ -273,7 +323,45 @@ export class Scraper {
             }
         }
 
+        fs.writeFileSync("continuation.json", JSON.stringify(json, null, 2));
         throw new Error("Unexpected continuation format");
+    }
+
+    private async loadInnertubeJsonContinuation(token: IPolymerScrapingContinuation) {
+        const client = { ... CLIENT_INFO };
+
+        if (this.innertubeInfo?.clientVersion) {
+            client.clientVersion = this.innertubeInfo.clientVersion;
+        }
+
+        return this.loadJson(URL_BASE + token.url, {
+            authorize: true,
+            body: {
+                context: {
+                    clickTracking: {
+                        clickTrackingParams: token.clickTracking,
+                    },
+                    client: CLIENT_INFO,
+                },
+                continuation: token.continuation,
+            },
+            qs: {
+                key: this.innertubeInfo?.apiKey ?? YOUTUBEI_API_KEY,
+            },
+        });
+    }
+
+    private async loadLegacyJsonContinuation(token: IPolymerScrapingContinuation) {
+        return this.loadJson(CONTINUATION_URL, {
+            form: {
+                session_token: this.xsrfToken,
+            },
+            qs: {
+                continuation: token.continuation,
+                ctoken: token.continuation,
+                itct: token.clickTracking,
+            },
+        })
     }
 
     private async fetch(url: string) {
@@ -311,6 +399,7 @@ export class Scraper {
         if (typeof html === "string") {
             this.identityToken = extractIdentityToken(html) || this.identityToken;
             this.xsrfToken = extractXsrfToken(html) || this.xsrfToken;
+            this.innertubeInfo = extractInnertubeInfo(html) || this.innertubeInfo;
             return extractJSON(html);
         } else {
             debug("result: ", html);
@@ -318,21 +407,35 @@ export class Scraper {
         }
     }
 
-    private async loadJson(url: string, opts?: {qs?: {}, form?: Record<string, any>}) {
+    private async loadJson(
+        url: string,
+        opts?: {
+            authorize?: boolean,
+            body?: {},
+            qs?: {},
+            form?: Record<string, any>,
+        },
+    ) {
         const { form, qs } = opts || { qs: undefined, form: undefined };
 
-        debug("loadJson:", url, opts?.qs, opts?.form);
-        const data = formDataFrom(form);
+        debug("loadJson:", url, opts);
+        const cookies = await this.getCookies();
+        const authorization = !(opts?.authorize && cookies) ? undefined
+            : `SAPISIDHASH ${generateSapiSidHash(cookies)}`;
+
+        const data = formDataFrom(form) ?? opts?.body;
         const { data: fullJson } = await axios({
             data,
             headers: {
+                "Authorization": authorization,
                 "Cookie": await this.getCookies(),
+                "Origin": URL_BASE,
                 "User-Agent": USER_AGENT,
                 "X-Youtube-Client-Name": 1,
                 "X-Youtube-Client-Version": "2.20190321",
                 "X-Youtube-Identity-Token": this.identityToken,
             },
-            method: form === undefined ? "GET" : "POST",
+            method: data === undefined ? "GET" : "POST",
             params: qs,
             url,
         });
@@ -342,11 +445,30 @@ export class Scraper {
             return this.scrapeJson(url, opts);
         }
 
-        return fullJson[1].response;
+        if (Array.isArray(fullJson)) {
+            return fullJson[1].response;
+        }
+
+        return fullJson;
     }
 
     private async getCookies() {
         const creds = await this.creds.get();
         if (creds) return creds.cookies;
     }
+}
+
+function generateSapiSidHash(cookies: string) {
+    const m = cookies.match(/SAPISID=([^;]+);/);
+    if (!m || m.length < 2) return;
+    const sapisid = m[1];
+
+    const date = new Date().getTime();
+    const toHash = `${date} ${sapisid} ${URL_BASE}`;
+
+    const shasum = crypto.createHash("sha1");
+    shasum.update(toHash);
+    const hash = shasum.digest("hex");
+
+    return `${date}_${hash}`;
 }

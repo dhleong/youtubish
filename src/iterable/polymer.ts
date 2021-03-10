@@ -3,6 +3,7 @@ import { IPage, IterableEntity } from "../iterable";
 import { ISectionRenderer, Scraper } from "../scraper/polymer";
 
 export interface IPolymerScrapingContinuation {
+    url?: string;
     clickTracking: string;
     continuation: string;
 }
