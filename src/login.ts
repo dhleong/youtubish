@@ -19,6 +19,7 @@ export async function requestAuthCode() {
     debug("launching browser...");
     const browser = await puppeteer.use(StealthPlugin()).launch({
         headless: false,
+        dumpio: debug.enabled,
     });
 
     const [
@@ -37,7 +38,9 @@ export async function requestAuthCode() {
     try {
         debug("opening auth code request url...");
         await page.goto(generateAuthCodeUrl());
-        await page.waitForNavigation();
+        await page.waitForNavigation({
+            timeout: 0,
+        });
 
         debug("waiting for auth result...");
         const response = await page.waitForResponse(req => {
