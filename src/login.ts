@@ -1,11 +1,34 @@
 import _debug from "debug";
 const debug = _debug("youtubish:login");
 
+import ChromePaths from "chrome-paths";
+import fs from "fs";
+import type { LaunchOptions } from "puppeteer";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { Cookie } from "tough-cookie";
 
 import { generateAuthCodeUrl, exchangeAuthCode } from "./auth";
+
+export interface RequestAuthCodeOptions {
+    /**
+     * We try to use sane defaults but this is an escape hatch
+     */
+    puppeteerOptions?: Partial<LaunchOptions>,
+}
+
+function detectInstalledBrowser() {
+    const candidates = [
+        ChromePaths.chrome,
+        ChromePaths.chromeCanary,
+        ChromePaths.chromium,
+    ];
+    for (const candidate of candidates) {
+        if (candidate && fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+}
 
 /*
  * NOTE: This process is largely based on the same for yakyak:
@@ -15,11 +38,21 @@ import { generateAuthCodeUrl, exchangeAuthCode } from "./auth";
  * Big thanks to the folks there for coming up with this process!
  */
 
-export async function requestAuthCode() {
-    debug("launching browser...");
+export async function requestAuthCode(
+    {
+        puppeteerOptions,
+    }: RequestAuthCodeOptions = {},
+) {
+    const executablePath = puppeteerOptions?.executablePath
+        ? undefined
+        : detectInstalledBrowser();
+
+    debug("launching browser; detected: ", executablePath);
     const browser = await puppeteer.use(StealthPlugin()).launch({
         headless: false,
         dumpio: debug.enabled,
+        executablePath,
+        ...puppeteerOptions,
     });
 
     const [
