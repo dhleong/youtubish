@@ -115,10 +115,13 @@ export class OauthCredentialsManager implements ICredentialsManager {
 
         const p = this.loadCookies();
         this.runningPromise = p;
-        const result = await p;
-        this.runningPromise = undefined;
-
-        return result;
+        try {
+            const result = await p;
+            return result;
+        } finally {
+            // NOTE: Ensure we clear this state on exception as well as success:
+            this.runningPromise = undefined;
+        }
     }
 
     public async set(_credentials: ICredentials) {
